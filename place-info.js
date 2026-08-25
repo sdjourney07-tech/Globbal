@@ -551,10 +551,15 @@
     });
   }
 
-  function showPlaceTipForCell(cellEl, board, row, col) {
+  async function showPlaceTipForCell(cellEl, board, row, col) {
     const words = wordsForCell(board, row, col);
     if (!words.length) {
       hidePlaceTip();
+      return;
+    }
+    // Metadata is fetched only when place info is opened (not on game start).
+    await load();
+    if (!cellEl.isConnected) {
       return;
     }
     showPlaceTipNear(words, cellEl.getBoundingClientRect(), cellEl);

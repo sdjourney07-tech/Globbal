@@ -718,10 +718,6 @@ if (!applyStartupRouting()) {
 
 window.GlobbleGameLoadReveal?.notifyReady();
 
-if (window.GlobblePlaceInfo) {
-  window.GlobblePlaceInfo.load();
-}
-
 window.GlobblePendingWordGlow?.registerRenderCallback(() => {
   renderBoard();
 });

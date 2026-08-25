@@ -800,6 +800,7 @@
       dictionaryDialog.showModal();
     }
     dictionaryFilterInput.value = "";
+    ensurePlaceMetadataLoaded();
     refreshDictionaryPanel();
     dictionaryFilterInput.focus();
   }
@@ -870,17 +871,26 @@
   const placeMetaUrl = new URL(metaFile, window.location.href).href;
   const categoriesUrl = new URL(categoriesFile, window.location.href).href;
 
-  fetch(placeMetaUrl)
-    .then((res) => (res.ok ? res.json() : {}))
-    .then((data) => {
-      placeMetadata = data && typeof data === "object" ? data : {};
-      refreshDictionaryPanel();
-    })
-    .catch(() => {
-      placeMetadata = {};
-      refreshDictionaryPanel();
-    });
+  let placeMetadataLoadPromise = null;
 
+  function ensurePlaceMetadataLoaded() {
+    if (placeMetadataLoadPromise) {
+      return placeMetadataLoadPromise;
+    }
+    placeMetadataLoadPromise = fetch(placeMetaUrl)
+      .then((res) => (res.ok ? res.json() : {}))
+      .then((data) => {
+        placeMetadata = data && typeof data === "object" ? data : {};
+        refreshDictionaryPanel();
+      })
+      .catch(() => {
+        placeMetadata = {};
+        refreshDictionaryPanel();
+      });
+    return placeMetadataLoadPromise;
+  }
+
+  // Categories are small; load once. Place metadata waits until the dictionary opens.
   fetch(categoriesUrl)
     .then((res) => (res.ok ? res.json() : null))
     .then((data) => {

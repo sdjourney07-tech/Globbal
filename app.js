@@ -1926,6 +1926,3 @@ if (window.GlobblePracticeResume?.tryRestore(restorePracticeSnapshot)) {
   initGame();
   window.GlobbleGameLoadReveal?.notifyReady();
 }
-if (window.GlobblePlaceInfo) {
-  window.GlobblePlaceInfo.load();
-}
