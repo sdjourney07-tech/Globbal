@@ -1,6 +1,6 @@
 /**
  * Touch-friendly tile pick-and-drop (HTML5 drag is unreliable on mobile).
- * Board stays stationary while dragging; zoom is unchanged from board-zoom.js.
+ * Desktop mouse uses native HTML5 drag; touch/pen uses pointer tracking.
  */
 (function tilePointerDrag() {
   const DRAG_THRESHOLD_PX = 4;
@@ -9,6 +9,10 @@
   let pointerDragging = false;
   let suppressClickUntil = 0;
 
+  function prefersPointerDrag(event) {
+    return event.pointerType === "touch" || event.pointerType === "pen";
+  }
+
   function isTileDraggable(tile) {
     if (!(tile instanceof Element)) {
       return false;
@@ -16,7 +20,6 @@
     if (tile.draggable === true || tile.getAttribute("draggable") === "true") {
       return true;
     }
-    // Rack tiles are often <button>; draggable may not reflect as an attribute.
     if (tile.closest(".rack") && options?.canInteract?.()) {
       return true;
     }
@@ -77,6 +80,11 @@
 
     const tile = getDraggableTile(event.target);
     if (!tile) {
+      return;
+    }
+
+    // Mouse uses native HTML5 drag (dragstart). Pointer drag only for touch/pen.
+    if (!prefersPointerDrag(event)) {
       return;
     }
 
@@ -197,9 +205,11 @@
   }
 
   function onNativeDragStart(event) {
-    if (pointerDragging || pending) {
+    if (pointerDragging) {
       event.preventDefault();
+      return;
     }
+    pending = null;
   }
 
   function onRackClickCapture(event) {

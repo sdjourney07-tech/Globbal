@@ -853,7 +853,7 @@ function renderBoard() {
   for (let row = 0; row < BOARD_ROWS; row += 1) {
     for (let col = 0; col < BOARD_COLS; col += 1) {
       const cell = board[row][col];
-      const cellEl = document.createElement("button");
+      const cellEl = document.createElement("div");
       cellEl.className = `cell ${cell.premium}`;
       const cellKey = `${row},${col}`;
       const showQwGold = !!cell.tile?.qwPlated || qwPendingKeys.has(cellKey);
@@ -863,7 +863,7 @@ function renderBoard() {
       if (row === START_SQUARE.row && col === START_SQUARE.col) {
         cellEl.classList.add("cell-start");
       }
-      cellEl.type = "button";
+      cellEl.setAttribute("role", "gridcell");
       cellEl.dataset.row = String(row);
       cellEl.dataset.col = String(col);
 

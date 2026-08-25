@@ -311,7 +311,7 @@ function renderBoard() {
   for (let row = 0; row < boardRows; row += 1) {
     for (let col = 0; col < boardCols; col += 1) {
       const cell = board[row][col];
-      const cellEl = document.createElement("button");
+      const cellEl = document.createElement("div");
       cellEl.className = `cell ${cell.premium}`;
       if (cell.tile?.qwPlated || qwPendingKeys.has(`${row},${col}`)) {
         cellEl.classList.add("cell-qw-word");
@@ -320,7 +320,7 @@ function renderBoard() {
       if (row === ss.row && col === ss.col) {
         cellEl.classList.add("cell-start");
       }
-      cellEl.type = "button";
+      cellEl.setAttribute("role", "gridcell");
       cellEl.dataset.row = String(row);
       cellEl.dataset.col = String(col);
 
@@ -982,11 +982,7 @@ if (window.GlobbleTilePointerDrag) {
     rackEl,
     boardEl,
     canInteract: () =>
-      Boolean(gameState) &&
-      !gameState.lobby &&
-      !!gameState.gameStarted &&
-      !gameState.gameOver &&
-      !!gameState.isMyTurn &&
+      canInteract() &&
       !rackShuffleAnimating &&
       rackEl?.dataset.shuffling !== "1",
     canReorder: () => canInteract() && draggingRackIndex !== null,

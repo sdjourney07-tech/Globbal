@@ -931,6 +931,17 @@ body.wiki-reveal-open .play-layout {
   opacity: 0.5;
 }
 
+.rack .tile[draggable="true"],
+.board .tile[draggable="true"] {
+  touch-action: none;
+  cursor: grab;
+}
+
+.rack .tile[draggable="true"]:active,
+.board .tile[draggable="true"]:active {
+  cursor: grabbing;
+}
+
 .board-wrap {
   display: flex;
   align-items: center;
