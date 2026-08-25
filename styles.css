@@ -1947,6 +1947,7 @@ body.wiki-reveal-open .play-layout {
   display: flex;
   align-items: center;
   justify-content: center;
+  min-width: 0;
   min-height: var(--score-strip-height);
   height: var(--score-strip-height);
   padding: 1px 6px;
@@ -1954,6 +1955,9 @@ body.wiki-reveal-open .play-layout {
   font-weight: 700;
   font-size: clamp(0.62rem, calc(var(--play-width) / 34), 0.78rem);
   line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   background-color: var(--tile);
   background-image: var(--tile-bg-image);
   color: var(--tile-text);

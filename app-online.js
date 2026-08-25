@@ -69,6 +69,8 @@ let shufflePrevRack = null;
 let rackReturnAnimating = false;
 let pendingTileReturn = null;
 let pendingEnterGameId = null;
+/** @type {string[]} */
+let matchUsernames = [];
 
 function setConnStatus(text) {
   connStatusEl.textContent = text || "";
@@ -147,9 +149,15 @@ function onWsMessage(ev) {
   }
   if (msg.type === "state") {
     gameState = msg.payload;
+    if (Array.isArray(gameState?.playerNames) && gameState.playerNames.length) {
+      matchUsernames = gameState.playerNames.slice();
+    }
     renderAll();
   } else if (msg.type === "joined") {
     if (msg.gameId) {
+      if (Array.isArray(msg.usernames) && msg.usernames.length) {
+        matchUsernames = msg.usernames.slice();
+      }
       persistSession({
         gameId: msg.gameId,
         playerToken: msg.playerToken,
@@ -443,10 +451,31 @@ async function maybeRunShuffleAnimation() {
   }
 }
 
+function playerScoreLabel(playerIndex) {
+  const players = gameState?.players || [];
+  const accountNames =
+    matchUsernames.length > 0
+      ? matchUsernames
+      : gameState?.playerNames || loadPersistSession()?.usernames || [];
+  const defaultName = `Player ${playerIndex + 1}`;
+  const stateName = players[playerIndex]?.name;
+  if (stateName && stateName !== defaultName) {
+    return stateName;
+  }
+  if (accountNames[playerIndex]) {
+    return accountNames[playerIndex];
+  }
+  return stateName || defaultName;
+}
+
 function renderScores() {
   const players = gameState.players || [];
-  player1ScoreEl.textContent = `Player 1: ${players[0] ? players[0].score : 0}`;
-  player2ScoreEl.textContent = `Player 2: ${players[1] ? players[1].score : 0}`;
+  const p1Name = playerScoreLabel(0);
+  const p2Name = playerScoreLabel(1);
+  player1ScoreEl.textContent = `${p1Name}: ${players[0] ? players[0].score : 0}`;
+  player2ScoreEl.textContent = `${p2Name}: ${players[1] ? players[1].score : 0}`;
+  player1ScoreEl.title = p1Name;
+  player2ScoreEl.title = p2Name;
   const cp = gameState.currentPlayer;
   player1ScoreEl.classList.toggle("active", cp === 0);
   player2ScoreEl.classList.toggle("active", cp === 1);
