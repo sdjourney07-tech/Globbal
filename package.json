@@ -2,10 +2,10 @@
   "name": "globble",
   "private": true,
   "scripts": {
-    "start": "node server-online.js",
-    "start:local": "node server-online.js",
+    "start": "node --max-old-space-size=384 server-online.js",
+    "start:local": "node --max-old-space-size=384 server-online.js",
     "start:mobile": "node server-online.js",
-    "start:online": "node server-online.js",
+    "start:online": "node --max-old-space-size=384 server-online.js",
     "start:static": "node serve-local.js",
     "build:categories": "node scripts/build-dictionary-categories.cjs",
     "apply:display-names": "node scripts/apply-dictionary-display-names.cjs",

@@ -161,11 +161,19 @@ const PREMIUM_LAYOUT = createPremiumLayout(BOARD_ROWS, BOARD_COLS);
 
 function loadDictionary() {
   const dictPath = path.join(__dirname, "dictionary.js");
-  const metaPath = path.join(__dirname, "place-metadata.json");
+  const aliasPath = path.join(__dirname, "dictionary-alias-sources.js");
   const src = fs.readFileSync(dictPath, "utf8");
   const LOCKED_WORDS = new Function(`${src}; return LOCKED_WORDS;`)();
-  const metadata = JSON.parse(fs.readFileSync(metaPath, "utf8"));
-  return buildPlayableDictionary(LOCKED_WORDS, { metadata });
+  // Use precomputed alias sources instead of place-metadata.json (~88MB).
+  // Full metadata is only needed for place-info UI in the browser.
+  let aliasSources = [];
+  try {
+    const aliasSrc = fs.readFileSync(aliasPath, "utf8");
+    aliasSources = new Function(`${aliasSrc}; return DICTIONARY_ALIAS_SOURCE_WORDS;`)() || [];
+  } catch {
+    aliasSources = [];
+  }
+  return buildPlayableDictionary(LOCKED_WORDS, { aliasSources });
 }
 
 function shuffleInPlace(array) {
