@@ -609,6 +609,141 @@ function onAnyDragEnd() {
   draggingTurnTilePos = null;
 }
 
+/** Empty cell whose box contains the point (ignores tiles/stacking). */
+function getEmptyCellAtClient(clientX, clientY) {
+  if (!boardEl || !gameState?.board) {
+    return null;
+  }
+  const cells = boardEl.querySelectorAll(".cell");
+  for (const cellEl of cells) {
+    const row = Number(cellEl.dataset.row);
+    const col = Number(cellEl.dataset.col);
+    if (!Number.isInteger(row) || !Number.isInteger(col)) {
+      continue;
+    }
+    if (gameState.board[row][col].tile) {
+      continue;
+    }
+    const rect = cellEl.getBoundingClientRect();
+    if (
+      clientX >= rect.left &&
+      clientX < rect.right &&
+      clientY >= rect.top &&
+      clientY < rect.bottom
+    ) {
+      return cellEl;
+    }
+  }
+  return null;
+}
+
+async function placeOnlineRackTile(row, col, rackIndex) {
+  if (!canInteract()) {
+    return;
+  }
+  const rack = gameState.myRack;
+  const tile = rack?.[rackIndex];
+  let blankLetter;
+  if (tile && tile.isBlank) {
+    const raw = window.GlobbleBlankPicker
+      ? await window.GlobbleBlankPicker.pickLetter()
+      : null;
+    if (!raw || !/^[a-z]$/i.test(raw)) {
+      messageEl.textContent = "Blank tile needs a letter A–Z.";
+      return;
+    }
+    blankLetter = raw.toUpperCase();
+  }
+  sendAction({
+    type: "placeTile",
+    row,
+    col,
+    rackIndex,
+    blankLetter
+  });
+}
+
+function moveOnlineTurnTile(targetRow, targetCol, sourceRow, sourceCol) {
+  if (!canInteract()) {
+    return;
+  }
+  sendAction({
+    type: "moveTile",
+    targetRow,
+    targetCol,
+    sourceRow,
+    sourceCol
+  });
+}
+
+async function handlePointerTileDrop(clientX, clientY) {
+  if (!canInteract()) {
+    return;
+  }
+
+  const emptyCellEl = getEmptyCellAtClient(clientX, clientY);
+  if (emptyCellEl) {
+    const row = Number(emptyCellEl.dataset.row);
+    const col = Number(emptyCellEl.dataset.col);
+    if (Number.isInteger(row) && Number.isInteger(col)) {
+      if (draggingRackIndex !== null) {
+        await placeOnlineRackTile(row, col, draggingRackIndex);
+        return;
+      }
+      if (draggingTurnTilePos) {
+        moveOnlineTurnTile(row, col, draggingTurnTilePos.row, draggingTurnTilePos.col);
+      }
+      return;
+    }
+  }
+
+  const target = document.elementFromPoint(clientX, clientY);
+  const cellEl = target instanceof Element ? target.closest(".cell") : null;
+  if (cellEl && boardEl?.contains(cellEl)) {
+    const row = Number(cellEl.dataset.row);
+    const col = Number(cellEl.dataset.col);
+    if (Number.isInteger(row) && Number.isInteger(col) && !gameState.board[row][col].tile) {
+      if (draggingRackIndex !== null) {
+        await placeOnlineRackTile(row, col, draggingRackIndex);
+        return;
+      }
+      if (draggingTurnTilePos) {
+        moveOnlineTurnTile(row, col, draggingTurnTilePos.row, draggingTurnTilePos.col);
+      }
+      return;
+    }
+  }
+
+  const slotEl = target instanceof Element ? target.closest(".rack-slot") : null;
+  if (!slotEl || !rackEl?.contains(slotEl)) {
+    return;
+  }
+
+  const slotIndex = Number(slotEl.dataset.rackSlot);
+  if (!Number.isInteger(slotIndex)) {
+    return;
+  }
+
+  if (draggingTurnTilePos && !rackReturnAnimating) {
+    returnBoardTileToRack(draggingTurnTilePos.row, draggingTurnTilePos.col, slotIndex, {
+      clientX,
+      clientY
+    });
+    return;
+  }
+
+  if (draggingRackIndex !== null && window.GlobbleRackReorder) {
+    const toIndex = window.GlobbleRackReorder.getDropIndex(
+      { clientX, clientY },
+      rackEl,
+      draggingRackIndex
+    );
+    if (draggingRackIndex !== toIndex) {
+      sendAction({ type: "reorderRack", fromIndex: draggingRackIndex, toIndex });
+    }
+  }
+}
+
 function onCellDragOver(event, row, col) {
   if (canDropOnCell(row, col)) {
     event.preventDefault();
@@ -636,40 +771,35 @@ async function onCellDrop(event, row, col) {
   event.preventDefault();
   if (!canInteract()) return;
 
-  if (draggingRackIndex !== null) {
-    const rack = gameState.myRack;
-    const tile = rack[draggingRackIndex];
-    let blankLetter;
-    if (tile && tile.isBlank) {
-      const raw = window.GlobbleBlankPicker
-        ? await window.GlobbleBlankPicker.pickLetter()
-        : null;
-      if (!raw || !/^[a-z]$/i.test(raw)) {
-        messageEl.textContent = "Blank tile needs a letter A–Z.";
-        onAnyDragEnd();
-        return;
-      }
-      blankLetter = raw.toUpperCase();
+  let targetRow = row;
+  let targetCol = col;
+  if (gameState.board[targetRow][targetCol].tile) {
+    const emptyCellEl = getEmptyCellAtClient(event.clientX, event.clientY);
+    if (!emptyCellEl) {
+      onAnyDragEnd();
+      return;
     }
-    sendAction({
-      type: "placeTile",
-      row,
-      col,
-      rackIndex: draggingRackIndex,
-      blankLetter
-    });
+    targetRow = Number(emptyCellEl.dataset.row);
+    targetCol = Number(emptyCellEl.dataset.col);
+    if (!Number.isInteger(targetRow) || !Number.isInteger(targetCol)) {
+      onAnyDragEnd();
+      return;
+    }
+  }
+
+  if (draggingRackIndex !== null) {
+    await placeOnlineRackTile(targetRow, targetCol, draggingRackIndex);
     onAnyDragEnd();
     return;
   }
 
   if (draggingTurnTilePos) {
-    sendAction({
-      type: "moveTile",
-      targetRow: row,
-      targetCol: col,
-      sourceRow: draggingTurnTilePos.row,
-      sourceCol: draggingTurnTilePos.col
-    });
+    moveOnlineTurnTile(
+      targetRow,
+      targetCol,
+      draggingTurnTilePos.row,
+      draggingTurnTilePos.col
+    );
     onAnyDragEnd();
   }
 }
@@ -745,5 +875,38 @@ if (window.GlobbleRackReorder) {
       sendAction({ type: "reorderRack", fromIndex, toIndex });
       onAnyDragEnd();
     }
+  });
+}
+
+if (window.GlobbleTilePointerDrag) {
+  window.GlobbleTilePointerDrag.init({
+    rackEl,
+    boardEl,
+    canInteract: () =>
+      Boolean(gameState) &&
+      !gameState.lobby &&
+      !!gameState.gameStarted &&
+      !gameState.gameOver &&
+      !!gameState.isMyTurn &&
+      !rackReturnAnimating &&
+      !rackShuffleAnimating &&
+      rackEl?.dataset.shuffling !== "1",
+    canReorder: () => canInteract() && draggingRackIndex !== null,
+    canReturnToRack: () =>
+      canInteract() && draggingTurnTilePos !== null && !rackReturnAnimating,
+    getDraggingRackIndex: () => draggingRackIndex,
+    getDraggingBoardPos: () => draggingTurnTilePos,
+    onRackDragStart(rackIndex) {
+      draggingRackIndex = rackIndex;
+      draggingTurnTilePos = null;
+    },
+    onBoardDragStart(row, col) {
+      draggingTurnTilePos = { row, col };
+      draggingRackIndex = null;
+    },
+    onDrop(clientX, clientY) {
+      return handlePointerTileDrop(clientX, clientY);
+    },
+    onDragEnd: onAnyDragEnd
   });
 }
