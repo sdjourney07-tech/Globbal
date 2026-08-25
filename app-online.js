@@ -274,17 +274,20 @@ function renderBoard() {
     window.GlobblePlaceInfo.hidePlaceTip();
   }
   const board = gameState.board;
-  const glowDisplay =
-    canInteract() && window.GlobblePendingWordGlow
-      ? window.GlobblePendingWordGlow.syncGlowDisplay({
+  const pendingNewTiles = (gameState.pendingPlacements || []).map((p) => ({
+    row: p.row,
+    col: p.col
+  }));
+  const qwPendingKeys =
+    pendingNewTiles.length && window.GlobblePendingWordGlow?.getQwPlatedCellKeys
+      ? window.GlobblePendingWordGlow.getQwPlatedCellKeys({
           board,
-          newTiles: (gameState.pendingPlacements || []).map((p) => ({ row: p.row, col: p.col })),
+          newTiles: pendingNewTiles,
           dictionary: onlineDictionary
         })
-      : { glowing: new Set(), fading: new Set() };
+      : new Set();
   const boardRows = board.length;
   const boardCols = board[0]?.length ?? boardRows;
-  boardEl.innerHTML = "";
   boardEl.style.display = "grid";
   boardEl.style.alignItems = "";
   boardEl.style.justifyContent = "";
@@ -293,30 +296,22 @@ function renderBoard() {
   boardEl.style.setProperty("--board-cols", String(boardCols));
   boardEl.style.setProperty("--board-rows", String(boardRows));
 
+  const frag = document.createDocumentFragment();
   for (let row = 0; row < boardRows; row += 1) {
     for (let col = 0; col < boardCols; col += 1) {
       const cell = board[row][col];
       const cellEl = document.createElement("button");
       cellEl.className = `cell ${cell.premium}`;
-      if (cell.tile?.qwPlated) {
+      if (cell.tile?.qwPlated || qwPendingKeys.has(`${row},${col}`)) {
         cellEl.classList.add("cell-qw-word");
       }
       const ss = startSquare(boardRows, boardCols);
       if (row === ss.row && col === ss.col) {
         cellEl.classList.add("cell-start");
       }
-      const cellKey = `${row},${col}`;
-      if (glowDisplay.glowing.has(cellKey)) {
-        cellEl.classList.add("pending-valid-word");
-      } else if (glowDisplay.fading.has(cellKey)) {
-        cellEl.classList.add("pending-valid-word-fade");
-      }
       cellEl.type = "button";
       cellEl.dataset.row = String(row);
       cellEl.dataset.col = String(col);
-      cellEl.addEventListener("click", () => onCellClick(row, col));
-      cellEl.addEventListener("dragover", (event) => onCellDragOver(event, row, col));
-      cellEl.addEventListener("drop", (event) => onCellDrop(event, row, col));
 
       if (!cell.tile) {
         const premiumLabel = document.createElement("span");
@@ -328,17 +323,16 @@ function renderBoard() {
         const unlocked = !cell.tile.locked && canInteract();
         if (unlocked) {
           tileEl.draggable = true;
-          tileEl.addEventListener("dragstart", (event) => onTurnTileDragStart(event, row, col));
-          tileEl.addEventListener("dragend", onAnyDragEnd);
         }
         cellEl.appendChild(tileEl);
         if (cell.tile.locked && window.GlobblePlaceInfo) {
           window.GlobblePlaceInfo.bindLockedCellPlaceTip(cellEl, board, row, col);
         }
       }
-      boardEl.appendChild(cellEl);
+      frag.appendChild(cellEl);
     }
   }
+  boardEl.replaceChildren(frag);
 }
 
 function renderRack() {
@@ -351,7 +345,7 @@ function renderRack() {
   if (rackShufflePendingAnimation) {
     rackEl.classList.add("is-shuffle-prep");
   }
-  rackEl.innerHTML = "";
+  const frag = document.createDocumentFragment();
   const rack = gameState.myRack || [];
 
   for (let index = 0; index < RACK_SIZE; index += 1) {
@@ -364,23 +358,15 @@ function renderRack() {
       const tileEl = createTileElement(tile, true);
       const usable = canInteract();
       tileEl.draggable = usable;
-      if (usable) {
-        tileEl.addEventListener("dragstart", (event) => onRackTileDragStart(event, index));
-        tileEl.addEventListener("dragend", onAnyDragEnd);
-      }
       if (index === selectedRackIndex) {
         tileEl.classList.add("selected");
       }
-      tileEl.addEventListener("click", () => {
-        if (!canInteract()) return;
-        selectedRackIndex = index === selectedRackIndex ? null : index;
-        renderRack();
-      });
       slotEl.appendChild(tileEl);
     }
 
-    rackEl.appendChild(slotEl);
+    frag.appendChild(slotEl);
   }
+  rackEl.replaceChildren(frag);
 
   if (rackShufflePendingAnimation) {
     void maybeRunShuffleAnimation();
@@ -820,6 +806,112 @@ shuffleRackBtn.addEventListener("click", () => {
 });
 
 setControlsDisabled(true);
+
+let boardEventsBound = false;
+let rackEventsBound = false;
+
+function bindBoardEvents() {
+  if (boardEventsBound || !boardEl) {
+    return;
+  }
+  boardEventsBound = true;
+
+  boardEl.addEventListener("click", (event) => {
+    const cellEl = event.target.closest(".cell");
+    if (!cellEl || !boardEl.contains(cellEl)) {
+      return;
+    }
+    const row = Number(cellEl.dataset.row);
+    const col = Number(cellEl.dataset.col);
+    if (Number.isInteger(row) && Number.isInteger(col)) {
+      onCellClick(row, col);
+    }
+  });
+
+  boardEl.addEventListener("dragover", (event) => {
+    const cellEl = event.target.closest(".cell");
+    if (!cellEl || !boardEl.contains(cellEl)) {
+      return;
+    }
+    const row = Number(cellEl.dataset.row);
+    const col = Number(cellEl.dataset.col);
+    if (Number.isInteger(row) && Number.isInteger(col)) {
+      onCellDragOver(event, row, col);
+    }
+  });
+
+  boardEl.addEventListener("drop", (event) => {
+    const cellEl = event.target.closest(".cell");
+    if (!cellEl || !boardEl.contains(cellEl)) {
+      return;
+    }
+    const row = Number(cellEl.dataset.row);
+    const col = Number(cellEl.dataset.col);
+    if (Number.isInteger(row) && Number.isInteger(col)) {
+      onCellDrop(event, row, col);
+    }
+  });
+
+  boardEl.addEventListener("dragstart", (event) => {
+    const tileEl = event.target.closest(".tile");
+    if (!tileEl || !tileEl.draggable || !boardEl.contains(tileEl)) {
+      return;
+    }
+    const cellEl = tileEl.closest(".cell");
+    if (!cellEl) {
+      return;
+    }
+    const row = Number(cellEl.dataset.row);
+    const col = Number(cellEl.dataset.col);
+    if (Number.isInteger(row) && Number.isInteger(col)) {
+      onTurnTileDragStart(event, row, col);
+    }
+  });
+
+  boardEl.addEventListener("dragend", onAnyDragEnd);
+}
+
+function bindRackEvents() {
+  if (rackEventsBound || !rackEl) {
+    return;
+  }
+  rackEventsBound = true;
+
+  rackEl.addEventListener("click", (event) => {
+    if (!canInteract()) {
+      return;
+    }
+    const tileEl = event.target.closest(".rack .tile");
+    if (!tileEl || !rackEl.contains(tileEl)) {
+      return;
+    }
+    const slotEl = tileEl.closest(".rack-slot");
+    const index = Number(slotEl?.dataset.rackSlot);
+    if (!Number.isInteger(index)) {
+      return;
+    }
+    selectedRackIndex = index === selectedRackIndex ? null : index;
+    renderRack();
+  });
+
+  rackEl.addEventListener("dragstart", (event) => {
+    const tileEl = event.target.closest(".tile");
+    if (!tileEl || !tileEl.draggable || !rackEl.contains(tileEl)) {
+      return;
+    }
+    const slotEl = tileEl.closest(".rack-slot");
+    const index = Number(slotEl?.dataset.rackSlot);
+    if (!Number.isInteger(index)) {
+      return;
+    }
+    onRackTileDragStart(event, index);
+  });
+
+  rackEl.addEventListener("dragend", onAnyDragEnd);
+}
+
+bindBoardEvents();
+bindRackEvents();
 
 function applyStartupRouting() {
   const params = new URLSearchParams(location.search);

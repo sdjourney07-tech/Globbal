@@ -84,8 +84,14 @@ function createAccountsHttp(store) {
         const username = store.normalizeUsername(body.username);
         const password = String(body.password || "");
         const row = await store.findUserByUsername(username);
-        if (!row || !(await store.verifyPassword(password, row.passwordHash))) {
-          sendJson(res, 401, { error: "Invalid username or password." });
+        if (!row) {
+          sendJson(res, 401, {
+            error: "No account with that username. Create an account first (MongoDB stores accounts now)."
+          });
+          return true;
+        }
+        if (!(await store.verifyPassword(password, row.passwordHash))) {
+          sendJson(res, 401, { error: "Incorrect password." });
           return true;
         }
         const user = store.publicUser(row);

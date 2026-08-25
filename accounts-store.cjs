@@ -538,6 +538,7 @@ function publicGameMongo(game, viewerId) {
 
 async function createAccountsStore() {
   const uri = process.env.MONGODB_URI || "";
+  const allowFile = process.env.ALLOW_FILE_ACCOUNTS === "1";
   if (uri) {
     const backend = await createMongoBackend(uri);
     return {
@@ -548,6 +549,14 @@ async function createAccountsStore() {
       publicUser,
       publicGame: (game, viewerId) => publicGame(game, viewerId)
     };
+  }
+  if (!allowFile) {
+    const err = new Error(
+      "MONGODB_URI is required. Set it in .env or Railway Variables. " +
+        "(Local file accounts only if ALLOW_FILE_ACCOUNTS=1 for dev.)"
+    );
+    err.code = "MONGODB_REQUIRED";
+    throw err;
   }
   const backend = createFileBackend();
   return {

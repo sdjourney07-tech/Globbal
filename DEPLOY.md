@@ -7,8 +7,9 @@ The app is one Node process: **HTTP static files**, **REST account APIs**, and *
 - **Single instance** (or sticky sessions). Live matches stay in memory.
 - **WebSockets** enabled on `/ws`.
 - **Accounts store**:
-  - Set **`MONGODB_URI`** to use MongoDB (recommended for production).
-  - If unset, accounts are stored in **`data/accounts-store.json`** (fine for local testing).
+  - **`MONGODB_URI` is required** for online play (accounts persist in Atlas across restarts).
+  - Set **`MONGODB_DB`** (e.g. `ClusterGlobble`).
+  - Optional **`ALLOW_FILE_ACCOUNTS=1`** only for local dev without MongoDB.
 
 ## Environment variables
 
@@ -16,7 +17,9 @@ The app is one Node process: **HTTP static files**, **REST account APIs**, and *
 |-----------------|-----------|---------|
 | `PORT`          | `8080`    | HTTP listen port |
 | `HOST`          | `0.0.0.0` | Bind address |
-| `MONGODB_URI`   | _(empty)_ | MongoDB connection string. When empty, uses local JSON file store. |
+| `MONGODB_URI`   | _(required)_ | MongoDB Atlas connection string. Accounts, sessions, and games persist here. |
+| `MONGODB_DB`    | `globble`    | Database name (e.g. `ClusterGlobble`). |
+| `ALLOW_FILE_ACCOUNTS` | _(unset)_ | Set to `1` only for local dev without MongoDB. |
 | `ROOM_IDLE_MS`  | `3600000` | After **both** WebSockets disconnect, drop the in-memory match after this many ms. `0` / `never` = keep until process restart. |
 
 ## Multiplayer flow

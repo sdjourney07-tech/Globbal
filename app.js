@@ -840,19 +840,16 @@ function renderBoard() {
   clearActiveTileDragState();
   const pendingNewTiles = turnPlacedTiles.map((t) => ({ row: t.row, col: t.col }));
   const qwPendingKeys =
-    window.GlobblePendingWordGlow?.getQwPlatedCellKeys?.({
-      board,
-      newTiles: pendingNewTiles,
-      dictionary
-    }) ?? new Set();
-  const glowDisplay = window.GlobblePendingWordGlow?.syncGlowDisplay({
-    board,
-    newTiles: pendingNewTiles,
-    dictionary
-  }) ?? { glowing: new Set(), fading: new Set() };
-  boardEl.innerHTML = "";
+    pendingNewTiles.length && window.GlobblePendingWordGlow?.getQwPlatedCellKeys
+      ? window.GlobblePendingWordGlow.getQwPlatedCellKeys({
+          board,
+          newTiles: pendingNewTiles,
+          dictionary
+        })
+      : new Set();
   boardEl.style.setProperty("--board-cols", String(BOARD_COLS));
   boardEl.style.setProperty("--board-rows", String(BOARD_ROWS));
+  const frag = document.createDocumentFragment();
   for (let row = 0; row < BOARD_ROWS; row += 1) {
     for (let col = 0; col < BOARD_COLS; col += 1) {
       const cell = board[row][col];
@@ -865,11 +862,6 @@ function renderBoard() {
       }
       if (row === START_SQUARE.row && col === START_SQUARE.col) {
         cellEl.classList.add("cell-start");
-      }
-      if (glowDisplay.glowing.has(cellKey) && !qwPendingKeys.has(cellKey)) {
-        cellEl.classList.add("pending-valid-word");
-      } else if (glowDisplay.fading.has(cellKey) && !qwPendingKeys.has(cellKey)) {
-        cellEl.classList.add("pending-valid-word-fade");
       }
       cellEl.type = "button";
       cellEl.dataset.row = String(row);
@@ -892,9 +884,10 @@ function renderBoard() {
           window.GlobblePlaceInfo.bindLockedCellPlaceTip(cellEl, board, row, col);
         }
       }
-      boardEl.appendChild(cellEl);
+      frag.appendChild(cellEl);
     }
   }
+  boardEl.replaceChildren(frag);
 }
 
 let rackEventsBound = false;
@@ -962,7 +955,7 @@ function renderRack(dealIn = false) {
     rackEl.classList.add("is-shuffle-prep");
   }
   clearActiveTileDragState();
-  rackEl.innerHTML = "";
+  const frag = document.createDocumentFragment();
   const rack = players[currentPlayer].rack;
   ensureRackSlots(rack);
   for (let index = 0; index < RACK_SIZE; index += 1) {
@@ -984,8 +977,9 @@ function renderRack(dealIn = false) {
       slotEl.appendChild(tileEl);
     }
 
-    rackEl.appendChild(slotEl);
+    frag.appendChild(slotEl);
   }
+  rackEl.replaceChildren(frag);
 
   if (rackShufflePendingAnimation) {
     void maybeRunShuffleAnimation();

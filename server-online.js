@@ -6,6 +6,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const zlib = require("zlib");
 const WebSocket = require("ws");
 const { loadDictionary, OnlineGame } = require("./game-engine.cjs");
 const { createAccountsStore } = require("./accounts-store.cjs");
@@ -42,9 +43,61 @@ const MIME = {
   ".png": "image/png",
   ".svg": "image/svg+xml",
   ".webp": "image/webp",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
   ".csv": "text/csv; charset=utf-8",
   ".txt": "text/plain; charset=utf-8"
 };
+
+const GZIP_EXTS = new Set([".html", ".js", ".css", ".json", ".svg", ".txt", ".csv"]);
+const LONG_CACHE_EXTS = new Set([
+  ".js",
+  ".css",
+  ".png",
+  ".svg",
+  ".webp",
+  ".ico",
+  ".woff",
+  ".woff2",
+  ".json"
+]);
+
+function sendStaticFile(req, res, file, ext) {
+  fs.readFile(file, (err, data) => {
+    if (err) {
+      res.writeHead(404);
+      res.end("Not found");
+      return;
+    }
+    const headers = {
+      "Content-Type": MIME[ext] || "application/octet-stream"
+    };
+    if (LONG_CACHE_EXTS.has(ext)) {
+      headers["Cache-Control"] = "public, max-age=86400";
+    } else {
+      headers["Cache-Control"] = "no-cache";
+    }
+
+    const accept = String(req.headers["accept-encoding"] || "");
+    if (GZIP_EXTS.has(ext) && /\bgzip\b/.test(accept) && data.length > 1024) {
+      zlib.gzip(data, (zipErr, compressed) => {
+        if (zipErr) {
+          res.writeHead(200, headers);
+          res.end(data);
+          return;
+        }
+        headers["Content-Encoding"] = "gzip";
+        headers.Vary = "Accept-Encoding";
+        res.writeHead(200, headers);
+        res.end(compressed);
+      });
+      return;
+    }
+
+    res.writeHead(200, headers);
+    res.end(data);
+  });
+}
 
 function safeJoin(base, target) {
   const baseNorm = path.resolve(base);
@@ -63,6 +116,23 @@ const liveGames = new Map();
 
 let accountsStore = null;
 let accountsHttp = null;
+
+/** @type {Map<string, ReturnType<typeof setTimeout>>} */
+const touchGameTimers = new Map();
+
+function scheduleTouchGame(gameId) {
+  const existing = touchGameTimers.get(gameId);
+  if (existing) {
+    clearTimeout(existing);
+  }
+  const timer = setTimeout(() => {
+    touchGameTimers.delete(gameId);
+    void accountsStore.touchGame(gameId).catch((err) => {
+      process.stderr.write(`[accounts] touchGame: ${err.message}\n`);
+    });
+  }, 2500);
+  touchGameTimers.set(gameId, timer);
+}
 
 function cancelRoomCleanup(room) {
   if (room.idleTimer) {
@@ -311,19 +381,26 @@ async function handleMessage(ws, raw) {
     return;
   }
 
+  // Update clients immediately — do not wait on MongoDB for mid-turn moves.
+  broadcastRoom(room);
+
   if (game.gameOver) {
     let winnerUserId = null;
     const scores = game.players?.map((p) => p.score) || [];
     if (scores.length === 2 && scores[0] !== scores[1]) {
       winnerUserId = room.playerIds[scores[0] > scores[1] ? 0 : 1];
     }
-    await accountsStore.markGameFinished(room.gameId, winnerUserId);
     room.status = "finished";
+    void accountsStore.markGameFinished(room.gameId, winnerUserId).catch((err) => {
+      process.stderr.write(`[accounts] markGameFinished: ${err.message}\n`);
+    });
+  } else if (type === "submit" || type === "pass") {
+    void accountsStore.touchGame(room.gameId).catch((err) => {
+      process.stderr.write(`[accounts] touchGame: ${err.message}\n`);
+    });
   } else {
-    await accountsStore.touchGame(room.gameId);
+    scheduleTouchGame(room.gameId);
   }
-
-  broadcastRoom(room);
 }
 
 async function start() {
@@ -360,16 +437,8 @@ async function start() {
         res.end("Forbidden");
         return;
       }
-      fs.readFile(file, (err, data) => {
-        if (err) {
-          res.writeHead(404);
-          res.end("Not found");
-          return;
-        }
-        const ext = path.extname(file);
-        res.setHeader("Content-Type", MIME[ext] || "application/octet-stream");
-        res.end(data);
-      });
+      const ext = path.extname(file);
+      sendStaticFile(req, res, file, ext);
     } catch (err) {
       process.stderr.write(`${err.stack || err.message}\n`);
       res.writeHead(500);
