@@ -57,10 +57,19 @@
       wrapH: wrap.clientHeight,
       stageLeft: stage.offsetLeft,
       stageTop: stage.offsetTop,
+      stageW: stage.offsetWidth,
+      stageH: stage.offsetHeight,
       boardLeft: board.offsetLeft,
       boardTop: board.offsetTop,
       boardW: board.offsetWidth,
       boardH: board.offsetHeight
+    };
+  }
+
+  function getStageOrigin(layout) {
+    return {
+      x: layout.stageW / 2,
+      y: layout.stageH / 2
     };
   }
 
@@ -71,16 +80,37 @@
     const slackY = layout.wrapH * 0.1;
     const centerX = layout.wrapW / 2;
     const centerY = layout.wrapH / 2;
+    const origin = getStageOrigin(layout);
     const boardLeft = layout.boardLeft;
     const boardRight = layout.boardLeft + layout.boardW;
     const boardTop = layout.boardTop;
     const boardBottom = layout.boardTop + layout.boardH;
 
     return {
-      minX: centerX - layout.stageLeft - boardRight * scale - slackX,
-      maxX: centerX - layout.stageLeft - boardLeft * scale + slackX,
-      minY: centerY - layout.stageTop - boardBottom * scale - slackY,
-      maxY: centerY - layout.stageTop - boardTop * scale + slackY
+      minX:
+        centerX -
+        layout.stageLeft -
+        origin.x -
+        (boardRight - origin.x) * scale -
+        slackX,
+      maxX:
+        centerX -
+        layout.stageLeft -
+        origin.x -
+        (boardLeft - origin.x) * scale +
+        slackX,
+      minY:
+        centerY -
+        layout.stageTop -
+        origin.y -
+        (boardBottom - origin.y) * scale -
+        slackY,
+      maxY:
+        centerY -
+        layout.stageTop -
+        origin.y -
+        (boardTop - origin.y) * scale +
+        slackY
     };
   }
 
@@ -142,13 +172,23 @@
 
   function computeFocalTransform(focal, scale) {
     const metrics = stageMetrics();
-    if (!metrics || !focal) {
+    const layout = getBoardLayout();
+    if (!metrics || !focal || !layout) {
       return null;
     }
+    const origin = getStageOrigin(layout);
     return {
       scale,
-      translateX: metrics.wrapCenterX - metrics.stageLeft - focal.x * scale,
-      translateY: metrics.wrapCenterY - metrics.stageTop - focal.y * scale
+      translateX:
+        metrics.wrapCenterX -
+        metrics.stageLeft -
+        origin.x * (1 - scale) -
+        focal.x * scale,
+      translateY:
+        metrics.wrapCenterY -
+        metrics.stageTop -
+        origin.y * (1 - scale) -
+        focal.y * scale
     };
   }
 
@@ -269,24 +309,40 @@
 
   function screenPointToStageLocal(clientX, clientY) {
     const metrics = stageMetrics();
+    const layout = getBoardLayout();
     const point = wrapPointFromClient(clientX, clientY);
-    if (!metrics) {
+    if (!metrics || !layout || state.scale === 0) {
       return { x: 0, y: 0 };
     }
+    const origin = getStageOrigin(layout);
     return {
-      x: (point.x - metrics.stageLeft - state.translateX) / state.scale,
-      y: (point.y - metrics.stageTop - state.translateY) / state.scale
+      x:
+        origin.x +
+        (point.x - metrics.stageLeft - state.translateX - origin.x) / state.scale,
+      y:
+        origin.y +
+        (point.y - metrics.stageTop - state.translateY - origin.y) / state.scale
     };
   }
 
   function setTransformAtPoint(scale, wrapX, wrapY, stageLocalX, stageLocalY) {
     const metrics = stageMetrics();
-    if (!metrics) {
+    const layout = getBoardLayout();
+    if (!metrics || !layout) {
       return;
     }
+    const origin = getStageOrigin(layout);
     state.scale = clamp(scale, MIN_SCALE, MAX_SCALE);
-    state.translateX = wrapX - metrics.stageLeft - stageLocalX * state.scale;
-    state.translateY = wrapY - metrics.stageTop - stageLocalY * state.scale;
+    state.translateX =
+      wrapX -
+      metrics.stageLeft -
+      origin.x * (1 - state.scale) -
+      stageLocalX * state.scale;
+    state.translateY =
+      wrapY -
+      metrics.stageTop -
+      origin.y * (1 - state.scale) -
+      stageLocalY * state.scale;
     applyTransform(false);
   }
 

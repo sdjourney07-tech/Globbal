@@ -204,6 +204,119 @@
     });
   }
 
+  async function runRecallAnimation(states) {
+    if (states.length === 0) {
+      return;
+    }
+
+    await animateStates(states, 140, (t, state) => {
+      const e = easeInOutCubic(t);
+      const lift = Math.sin(t * Math.PI) * -30;
+      const pop = 1 + Math.sin(t * Math.PI) * 0.08;
+      return {
+        tx: (state.toX - state.x) * e,
+        ty: (state.toY - state.y) * e + lift,
+        rot: (1 - e) * 16,
+        scale: pop,
+        z: 100 + state.destSlot
+      };
+    });
+
+    await animateStates(states, 45, (t, state) => {
+      const e = easeOutCubic(t);
+      const settle = 1 + (1 - e) * 0.04;
+      return {
+        tx: state.toX - state.x,
+        ty: state.toY - state.y,
+        rot: 0,
+        scale: settle,
+        z: 100 + state.destSlot
+      };
+    });
+
+    states.forEach((state) => {
+      applyTransform(state.el, state.toX - state.x, state.toY - state.y, 0, 1, 100 + state.destSlot);
+    });
+  }
+
+  function createRecallGhost(sourceEl, tile, fromRect) {
+    let ghost;
+    if (sourceEl instanceof Element) {
+      ghost = sourceEl.cloneNode(true);
+      ghost.removeAttribute("draggable");
+      ghost.className = `${sourceEl.className} tile-shuffle-active`.replace(/\btile-drag-source\b/g, "").trim();
+    } else if (tile) {
+      ghost = document.createElement("div");
+      ghost.className = "tile tile-shuffle-active";
+      const isUnassignedBlank = tile.isBlank && tile.letter === "?";
+      if (isUnassignedBlank) {
+        ghost.classList.add("tile-blank");
+      }
+      const letterEl = document.createElement("span");
+      letterEl.textContent = isUnassignedBlank ? "" : tile.letter;
+      ghost.appendChild(letterEl);
+      const valueEl = document.createElement("span");
+      valueEl.className = "value";
+      valueEl.textContent = tile.value;
+      ghost.appendChild(valueEl);
+    } else {
+      return null;
+    }
+    ghost.setAttribute("aria-hidden", "true");
+    ghost.style.position = "fixed";
+    ghost.style.left = `${fromRect.left}px`;
+    ghost.style.top = `${fromRect.top}px`;
+    ghost.style.width = `${fromRect.width}px`;
+    ghost.style.height = `${fromRect.height}px`;
+    ghost.style.margin = "0";
+    ghost.style.boxSizing = "border-box";
+    ghost.style.pointerEvents = "none";
+    ghost.style.transformOrigin = "center center";
+    ghost.style.willChange = "transform";
+    ghost.style.zIndex = "10000";
+    ghost.style.transform = "translate(0px, 0px) rotate(0deg) scale(1)";
+    document.body.appendChild(ghost);
+    return ghost;
+  }
+
+  async function playRecall(items, options = {}) {
+    const { button } = options;
+    const valid = (items || []).filter((item) => item.fromRect && item.toRect && item.tile);
+    if (!valid.length) {
+      return;
+    }
+
+    if (button) {
+      button.disabled = true;
+    }
+
+    const states = [];
+    valid.forEach((item, index) => {
+      const ghost = createRecallGhost(item.tileEl, item.tile, item.fromRect);
+      if (!ghost) {
+        return;
+      }
+      states.push({
+        el: ghost,
+        x: item.fromRect.left,
+        y: item.fromRect.top,
+        toX: item.toRect.left,
+        toY: item.toRect.top,
+        destSlot: index,
+        srcSlot: index
+      });
+    });
+
+    try {
+      await runRecallAnimation(states);
+    } finally {
+      states.forEach((state) => state.el.remove());
+      if (button) {
+        button.disabled = false;
+      }
+    }
+  }
+
   async function runShuffleAnimation(rackEl, states) {
     if (states.length < 2) {
       return;
@@ -283,6 +396,7 @@
 
   window.GlobbleRackShuffle = {
     play,
+    playRecall,
     computeSlotSources
   };
 })();

@@ -1385,33 +1385,46 @@ async function recallTurnTiles({ animate = true } = {}) {
     return { slotEl, slotTileEl };
   });
 
-  if (window.GlobbleRackReturn) {
-    pending.forEach((item) => {
-      const toRect = window.GlobbleRackReturn.getSlotRect(rackEl, item.rackIndex);
+  if (recallTilesBtn) {
+    recallTilesBtn.disabled = true;
+  }
+
+  const recallItems = pending
+    .map((item) => {
+      const toRect = window.GlobbleRackReturn?.getSlotRect(rackEl, item.rackIndex);
       if (!item.fromRect || !toRect) {
-        return;
+        return null;
       }
+      return { ...item, toRect };
+    })
+    .filter(Boolean);
+
+  if (window.GlobbleRackShuffle?.playRecall && recallItems.length) {
+    await window.GlobbleRackShuffle.playRecall(recallItems, { button: recallTilesBtn });
+  } else if (window.GlobbleRackReturn) {
+    recallItems.forEach((item) => {
       void window.GlobbleRackReturn.playQuick({
         fromRect: item.fromRect,
-        toRect,
+        toRect: item.toRect,
         tile: item.tile,
         sourceEl: item.tileEl
       });
     });
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, window.GlobbleRackReturn?.QUICK_DURATION_MS ?? 55);
+    });
   }
 
-  window.setTimeout(() => {
-    for (const { slotEl, slotTileEl } of hiddenTiles) {
-      if (slotTileEl) {
-        slotTileEl.style.visibility = "";
-      }
-      slotEl?.classList.add("rack-slot-pop");
-      window.setTimeout(() => slotEl?.classList.remove("rack-slot-pop"), 100);
+  for (const { slotEl, slotTileEl } of hiddenTiles) {
+    if (slotTileEl) {
+      slotTileEl.style.visibility = "";
     }
-    if (recallTilesBtn) {
-      recallTilesBtn.disabled = false;
-    }
-  }, window.GlobbleRackReturn?.QUICK_DURATION_MS ?? 55);
+    slotEl?.classList.add("rack-slot-pop");
+    window.setTimeout(() => slotEl?.classList.remove("rack-slot-pop"), 100);
+  }
+  if (recallTilesBtn) {
+    recallTilesBtn.disabled = false;
+  }
 }
 
 async function submitTurn() {

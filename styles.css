@@ -226,9 +226,56 @@ html:has(.gameplay-body) {
     0 6px 18px rgba(18, 10, 6, 0.48);
 }
 
-.gameplay-body .board-wrap,
+.gameplay-body .board-wrap {
+  position: relative;
+  box-sizing: border-box;
+  background-color: color-mix(in srgb, var(--play-tray-oak-base) 88%, #1a0e08);
+  background-image: var(--play-tray-oak-surface);
+  background-size: cover;
+  background-position: center;
+  border: none;
+  border-radius: 10px;
+  isolation: isolate;
+  box-shadow:
+    inset 0 1px 0 rgba(120, 78, 48, 0.22),
+    inset 0 0 0 1px rgba(8, 4, 2, 0.7),
+    inset 0 5px 18px rgba(4, 2, 1, 0.42),
+    0 3px 10px rgba(12, 7, 4, 0.4);
+}
+
+/* Fixed viewport frame — stays put while board-stage zooms inside */
+.gameplay-body .board-wrap::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 3px solid var(--board-frame);
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 10;
+  box-sizing: border-box;
+}
+
+.gameplay-body .board-wrap::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 5;
+  box-shadow: inset 0 0 0 1px rgba(196, 158, 110, 0.16);
+}
+
 .gameplay-body .board-stage {
-  background: var(--play-tray-oak-base);
+  background: transparent;
+}
+
+.gameplay-body .board {
+  border: none;
+  box-shadow:
+    inset 0 1px 0 rgba(88, 56, 34, 0.2),
+    inset 0 0 0 1px rgba(14, 8, 5, 0.58),
+    inset 0 5px 16px rgba(6, 3, 2, 0.58),
+    inset 0 -4px 12px rgba(6, 3, 2, 0.42);
 }
 
 .gameplay-body .rack-slot {
@@ -957,8 +1004,8 @@ body.wiki-reveal-open .play-layout {
   container-type: size;
   overflow: hidden;
   touch-action: none;
-  background: var(--board-oak-base);
-  border-radius: 12px;
+  position: relative;
+  border-radius: 10px;
 }
 
 .board-wrap.board-wrap-zoomed {
@@ -981,10 +1028,10 @@ body.wiki-reveal-open .play-layout {
   max-width: 100%;
   max-height: 100%;
   overflow: visible;
-  transform-origin: 0 0;
+  transform-origin: 50% 50%;
   will-change: transform;
-  background: var(--board-oak-base);
-  border-radius: 12px;
+  background: transparent;
+  border-radius: 0;
 }
 
 .board-stage.board-stage-zoom-anim {
@@ -1000,7 +1047,7 @@ body.wiki-reveal-open .play-layout {
   position: absolute;
   top: 0;
   left: 50%;
-  z-index: 2;
+  z-index: 6;
   transform: translate(-50%, calc(-100% - 2px));
   color: var(--muted);
   font-size: 0.88rem;
@@ -2037,6 +2084,17 @@ body.wiki-reveal-open .play-layout {
 
 .rack.rack-shuffling .tile-shuffle-active {
   container-type: normal;
+}
+
+body > .tile.tile-shuffle-active {
+  opacity: 1 !important;
+  container-type: normal !important;
+  box-shadow:
+    0 1px 0 rgba(255, 250, 242, 0.45) inset,
+    0 -1px 4px rgba(68, 50, 32, 0.14) inset,
+    2px 6px 14px rgba(42, 26, 15, 0.28),
+    4px 12px 24px rgba(42, 26, 15, 0.22);
+  will-change: transform;
 }
 
 @media (prefers-reduced-motion: reduce) {

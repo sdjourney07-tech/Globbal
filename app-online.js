@@ -67,10 +67,32 @@ let rackShuffleAnimating = false;
 let rackShufflePendingAnimation = false;
 let shufflePrevRack = null;
 let rackReturnAnimating = false;
+let rackRecallAnimating = false;
 let pendingTileReturn = null;
 let pendingEnterGameId = null;
 /** @type {string[]} */
 let matchUsernames = [];
+/** @type {object | null} */
+let lastConfirmedGameState = null;
+
+function cloneGameState(state) {
+  if (!state) {
+    return null;
+  }
+  return JSON.parse(JSON.stringify(state));
+}
+
+function rememberConfirmedState(state) {
+  lastConfirmedGameState = cloneGameState(state);
+}
+
+function revertOptimisticState() {
+  if (!lastConfirmedGameState) {
+    return;
+  }
+  gameState = cloneGameState(lastConfirmedGameState);
+  renderAll();
+}
 
 function setConnStatus(text) {
   connStatusEl.textContent = text || "";
@@ -149,6 +171,7 @@ function onWsMessage(ev) {
   }
   if (msg.type === "state") {
     gameState = msg.payload;
+    rememberConfirmedState(gameState);
     if (Array.isArray(gameState?.playerNames) && gameState.playerNames.length) {
       matchUsernames = gameState.playerNames.slice();
     }
@@ -175,6 +198,9 @@ function onWsMessage(ev) {
     rackShufflePendingAnimation = false;
     shufflePrevRack = null;
     pendingTileReturn = null;
+    if (gameState?.isMyTurn) {
+      revertOptimisticState();
+    }
     if (msg.error && msg.error.startsWith("Invalid word")) {
       window.GlobbleInvalidWordToast?.show();
       messageEl.textContent = "";
@@ -548,6 +574,105 @@ function renderAll() {
   window.GlobbleBoardZoom?.syncFromTiles(gameState.pendingPlacements || [], boardEl);
 }
 
+function applyOptimisticRecall() {
+  const pending = gameState?.pendingPlacements || [];
+  if (!pending.length) {
+    return false;
+  }
+  const rack = gameState.myRack;
+  if (!rack) {
+    return false;
+  }
+  pending.forEach(({ row, col, rackIndex }) => {
+    const tile = gameState.board[row]?.[col]?.tile;
+    if (!tile) {
+      return;
+    }
+    gameState.board[row][col].tile = null;
+    const restored = tileBackToRack(tile);
+    if (
+      Number.isInteger(rackIndex) &&
+      rackIndex >= 0 &&
+      rackIndex < RACK_SIZE &&
+      !rack[rackIndex]
+    ) {
+      rack[rackIndex] = restored;
+    } else {
+      for (let i = 0; i < RACK_SIZE; i += 1) {
+        if (!rack[i]) {
+          rack[i] = restored;
+          break;
+        }
+      }
+    }
+  });
+  gameState.pendingPlacements = [];
+  gameState.message = "";
+  return true;
+}
+
+async function recallOnlineTurnTiles() {
+  if (!canInteract() || rackRecallAnimating || !(gameState.pendingPlacements || []).length) {
+    return;
+  }
+
+  const pending = (gameState.pendingPlacements || []).map(({ row, col, rackIndex }) => {
+    const cellEl = boardEl.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+    const tileEl = cellEl?.querySelector(".tile") ?? null;
+    const fromRect = tileEl?.getBoundingClientRect() ?? null;
+    const toRect = window.GlobbleRackReturn?.getSlotRect(rackEl, rackIndex);
+    const tile = gameState.board[row]?.[col]?.tile;
+    return { row, col, rackIndex, tile, tileEl, fromRect, toRect };
+  });
+
+  const recallItems = pending.filter((item) => item.tile && item.fromRect && item.toRect);
+  if (!recallItems.length) {
+    sendAction({ type: "recall" });
+    return;
+  }
+
+  rackRecallAnimating = true;
+  recallTilesBtn.disabled = true;
+
+  if (!applyOptimisticRecall()) {
+    rackRecallAnimating = false;
+    recallTilesBtn.disabled = !canInteract();
+    return;
+  }
+
+  selectedRackIndex = null;
+  window.GlobblePendingWordGlow?.resetGlowState?.();
+  window.GlobbleBoardZoom?.reset?.(false);
+  renderAll();
+
+  const hiddenTiles = recallItems.map(({ rackIndex }) => {
+    const slotEl = rackEl.querySelector(`.rack-slot[data-rack-slot="${rackIndex}"]`);
+    const slotTileEl = slotEl?.querySelector(".tile");
+    if (slotTileEl) {
+      slotTileEl.style.visibility = "hidden";
+    }
+    return { slotEl, slotTileEl };
+  });
+
+  sendAction({ type: "recall" });
+
+  try {
+    if (window.GlobbleRackShuffle?.playRecall) {
+      await window.GlobbleRackShuffle.playRecall(recallItems, { button: recallTilesBtn });
+    }
+  } finally {
+    hiddenTiles.forEach(({ slotEl, slotTileEl }) => {
+      if (slotTileEl) {
+        slotTileEl.style.visibility = "";
+      }
+      slotEl?.classList.add("rack-slot-pop");
+      window.setTimeout(() => slotEl?.classList.remove("rack-slot-pop"), 100);
+    });
+    rackRecallAnimating = false;
+    setControlsDisabled(!canInteract() || !!gameState?.gameOver);
+  }
+}
+
 function returnBoardTileToRack(row, col, preferredRackSlot = null, dropPoint = null) {
   if (!canInteract()) {
     return;
@@ -659,6 +784,65 @@ function getEmptyCellAtClient(clientX, clientY) {
   return null;
 }
 
+function tileBackToRack(tile) {
+  if (tile.isBlank) {
+    return { ...tile, letter: "?", value: 0, locked: false };
+  }
+  return { ...tile, locked: false };
+}
+
+function applyOptimisticPlaceTile(row, col, rackIndex, blankLetter) {
+  const rack = gameState?.myRack;
+  const board = gameState?.board;
+  if (!rack || !board || board[row]?.[col]?.tile) {
+    return false;
+  }
+  const chosenTile = rack[rackIndex];
+  if (!chosenTile) {
+    return false;
+  }
+
+  const tile = { ...chosenTile, placedBy: gameState.myPlayerIndex, locked: false };
+  if (tile.isBlank) {
+    if (!blankLetter || !/^[a-z]$/i.test(String(blankLetter))) {
+      return false;
+    }
+    tile.letter = String(blankLetter).toUpperCase();
+    tile.value = 0;
+  }
+
+  rack[rackIndex] = null;
+  board[row][col].tile = tile;
+  if (!Array.isArray(gameState.pendingPlacements)) {
+    gameState.pendingPlacements = [];
+  }
+  gameState.pendingPlacements.push({ row, col, rackIndex });
+  return true;
+}
+
+function applyOptimisticMoveTile(targetRow, targetCol, sourceRow, sourceCol) {
+  const board = gameState?.board;
+  if (!board || board[targetRow]?.[targetCol]?.tile) {
+    return false;
+  }
+  const sourceCell = board[sourceRow]?.[sourceCol];
+  if (!sourceCell?.tile || sourceCell.tile.locked) {
+    return false;
+  }
+
+  const movedTile = sourceCell.tile;
+  sourceCell.tile = null;
+  board[targetRow][targetCol].tile = movedTile;
+
+  const pending = gameState.pendingPlacements || [];
+  const turnIdx = pending.findIndex((entry) => entry.row === sourceRow && entry.col === sourceCol);
+  if (turnIdx !== -1) {
+    pending[turnIdx].row = targetRow;
+    pending[turnIdx].col = targetCol;
+  }
+  return true;
+}
+
 async function placeOnlineRackTile(row, col, rackIndex) {
   if (!canInteract()) {
     return;
@@ -676,6 +860,11 @@ async function placeOnlineRackTile(row, col, rackIndex) {
     }
     blankLetter = raw.toUpperCase();
   }
+  if (!applyOptimisticPlaceTile(row, col, rackIndex, blankLetter)) {
+    return;
+  }
+  selectedRackIndex = null;
+  renderAll();
   sendAction({
     type: "placeTile",
     row,
@@ -689,6 +878,10 @@ function moveOnlineTurnTile(targetRow, targetCol, sourceRow, sourceCol) {
   if (!canInteract()) {
     return;
   }
+  if (!applyOptimisticMoveTile(targetRow, targetCol, sourceRow, sourceCol)) {
+    return;
+  }
+  renderAll();
   sendAction({
     type: "moveTile",
     targetRow,
@@ -827,7 +1020,9 @@ async function onCellDrop(event, row, col) {
 }
 
 submitTurnBtn.addEventListener("click", () => sendAction({ type: "submit" }));
-recallTilesBtn.addEventListener("click", () => sendAction({ type: "recall" }));
+recallTilesBtn.addEventListener("click", () => {
+  void recallOnlineTurnTiles();
+});
 passTurnBtn.addEventListener("click", () => sendAction({ type: "pass" }));
 shuffleRackBtn.addEventListener("click", () => {
   if (!canInteract() || rackShuffleAnimating || rackEl.dataset.shuffling === "1") {

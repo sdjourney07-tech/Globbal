@@ -197,6 +197,9 @@
   justify-content: center;
   overflow: hidden;
   touch-action: none;
+  position: relative;
+  box-sizing: border-box;
+  border-radius: 10px;
 }
 
 .board-stage {
