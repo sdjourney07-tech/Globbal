@@ -942,9 +942,6 @@ function cloneRackSnapshot(rack) {
 }
 
 function renderRack(dealIn = false) {
-  if (rackReturnAnimating) {
-    return;
-  }
   if (rackEl.dataset.shuffling === "1") {
     return;
   }
@@ -972,7 +969,7 @@ function renderRack(dealIn = false) {
       }
       if (dealIn) {
         tileEl.classList.add("tile-deal-in");
-        tileEl.style.animationDelay = `${index * 21}ms`;
+        tileEl.style.animationDelay = `${index * 8}ms`;
       }
       slotEl.appendChild(tileEl);
     }
@@ -1153,8 +1150,8 @@ async function handlePointerTileDrop(clientX, clientY) {
     return;
   }
 
-  if (draggingTurnTilePos && !rackReturnAnimating) {
-    await removeTurnTile(
+  if (draggingTurnTilePos) {
+    void removeTurnTile(
       draggingTurnTilePos.row,
       draggingTurnTilePos.col,
       slotIndex,
@@ -1286,9 +1283,6 @@ function moveTurnTile(targetRow, targetCol, sourceRow, sourceCol) {
 }
 
 async function removeTurnTile(row, col, preferredRackSlot = null, dropPoint = null) {
-  if (rackReturnAnimating) {
-    return;
-  }
   const idx = turnPlacedTiles.findIndex((entry) => entry.row === row && entry.col === col);
   if (idx === -1) {
     return;
@@ -1319,24 +1313,23 @@ async function removeTurnTile(row, col, preferredRackSlot = null, dropPoint = nu
     slotTileEl.style.visibility = "hidden";
   }
 
-  rackReturnAnimating = true;
-  try {
-    if (fromRect && toRect && window.GlobbleRackReturn) {
-      await window.GlobbleRackReturn.playQuick({ fromRect, toRect, tile });
+  const finishReturn = () => {
+    if (slotTileEl) {
+      slotTileEl.style.visibility = "";
     }
-  } finally {
-    rackReturnAnimating = false;
-  }
+    slotEl?.classList.add("rack-slot-pop");
+    window.setTimeout(() => slotEl?.classList.remove("rack-slot-pop"), 100);
+  };
 
-  if (slotTileEl) {
-    slotTileEl.style.visibility = "";
+  if (fromRect && toRect && window.GlobbleRackReturn) {
+    void window.GlobbleRackReturn.playQuick({ fromRect, toRect, tile }).finally(finishReturn);
+  } else {
+    finishReturn();
   }
-  slotEl?.classList.add("rack-slot-pop");
-  window.setTimeout(() => slotEl?.classList.remove("rack-slot-pop"), 220);
 }
 
 async function recallTurnTiles({ animate = true } = {}) {
-  if (rackReturnAnimating || turnPlacedTiles.length === 0) {
+  if (turnPlacedTiles.length === 0) {
     return;
   }
 
@@ -1382,41 +1375,33 @@ async function recallTurnTiles({ animate = true } = {}) {
     return { slotEl, slotTileEl };
   });
 
-  if (recallTilesBtn) {
-    recallTilesBtn.disabled = true;
-  }
-  rackReturnAnimating = true;
-  try {
-    if (window.GlobbleRackReturn) {
-      const plays = pending.map((item) => {
-        const toRect = window.GlobbleRackReturn.getSlotRect(rackEl, item.rackIndex);
-        if (!item.fromRect || !toRect) {
-          return Promise.resolve();
-        }
-        return window.GlobbleRackReturn.play({
-          fromRect: item.fromRect,
-          toRect,
-          tile: item.tile,
-          sourceEl: item.tileEl,
-          durationMs: window.GlobbleRackReturn.RECALL_DURATION_MS
-        });
+  if (window.GlobbleRackReturn) {
+    pending.forEach((item) => {
+      const toRect = window.GlobbleRackReturn.getSlotRect(rackEl, item.rackIndex);
+      if (!item.fromRect || !toRect) {
+        return;
+      }
+      void window.GlobbleRackReturn.playQuick({
+        fromRect: item.fromRect,
+        toRect,
+        tile: item.tile,
+        sourceEl: item.tileEl
       });
-      await Promise.all(plays);
+    });
+  }
+
+  window.setTimeout(() => {
+    for (const { slotEl, slotTileEl } of hiddenTiles) {
+      if (slotTileEl) {
+        slotTileEl.style.visibility = "";
+      }
+      slotEl?.classList.add("rack-slot-pop");
+      window.setTimeout(() => slotEl?.classList.remove("rack-slot-pop"), 100);
     }
-  } finally {
-    rackReturnAnimating = false;
     if (recallTilesBtn) {
       recallTilesBtn.disabled = false;
     }
-  }
-
-  for (const { slotEl, slotTileEl } of hiddenTiles) {
-    if (slotTileEl) {
-      slotTileEl.style.visibility = "";
-    }
-    slotEl?.classList.add("rack-slot-pop");
-    window.setTimeout(() => slotEl?.classList.remove("rack-slot-pop"), 220);
-  }
+  }, window.GlobbleRackReturn?.QUICK_DURATION_MS ?? 55);
 }
 
 async function submitTurn() {
@@ -1787,7 +1772,7 @@ if (window.GlobbleRackReorder) {
     getDraggingRackIndex: () => draggingRackIndex,
     getDraggingBoardPos: () => draggingTurnTilePos,
     canReturnToRack: () =>
-      gameStarted && draggingTurnTilePos !== null && !rackReturnAnimating,
+      gameStarted && draggingTurnTilePos !== null,
     onReturnToRack(row, col, preferredSlot, dropPoint) {
       void removeTurnTile(row, col, preferredSlot, dropPoint).then(() => {
         onAnyDragEnd();
@@ -1810,12 +1795,11 @@ if (window.GlobbleTilePointerDrag) {
     boardEl,
     canInteract: () =>
       gameStarted &&
-      !rackReturnAnimating &&
       !rackShuffleAnimating &&
       rackEl?.dataset.shuffling !== "1",
     canReorder: () => gameStarted && draggingRackIndex !== null,
     canReturnToRack: () =>
-      gameStarted && draggingTurnTilePos !== null && !rackReturnAnimating,
+      gameStarted && draggingTurnTilePos !== null,
     getDraggingRackIndex: () => draggingRackIndex,
     getDraggingBoardPos: () => draggingTurnTilePos,
     onRackDragStart(rackIndex) {

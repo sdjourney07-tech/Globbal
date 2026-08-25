@@ -8,9 +8,9 @@
   const LIFT_GROWTH = 0.28;
   const FLIGHT_PEAK_SCALE = 2.15;
   const SPIN_DEGREES = 540;
-  const DEFAULT_DURATION_MS = 420;
-  const RECALL_DURATION_MS = 360;
-  const QUICK_DURATION_MS = 180;
+  const DEFAULT_DURATION_MS = 160;
+  const RECALL_DURATION_MS = 120;
+  const QUICK_DURATION_MS = 55;
 
   function easeOutCubic(t) {
     return 1 - (1 - t) ** 3;

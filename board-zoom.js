@@ -6,7 +6,7 @@
   const PLACEMENT_ZOOM_SCALE = 1.88;
   const MIN_SCALE = 1;
   const MAX_SCALE = 2.4;
-  const PLACEMENT_ANIM_MS = 720;
+  const PLACEMENT_ANIM_MS = 180;
 
   const state = {
     wrap: null,
@@ -320,7 +320,7 @@
     state.suppressClick = false;
     state.wrap?.classList.remove("board-wrap-panning");
     if (animate && (state.scale !== 1 || state.translateX !== 0 || state.translateY !== 0)) {
-      animateTo(target, 520);
+      animateTo(target, 160);
       return;
     }
     state.scale = 1;

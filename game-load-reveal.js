@@ -24,7 +24,7 @@
     }
     settled = true;
     shell.classList.add("is-game-loaded");
-    const fallback = window.setTimeout(finalizeCurtainRemoval, 900);
+    const fallback = window.setTimeout(finalizeCurtainRemoval, 320);
     curtain.addEventListener(
       "transitionend",
       (event) => {

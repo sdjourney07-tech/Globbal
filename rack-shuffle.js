@@ -211,7 +211,7 @@
 
     pinTiles(rackEl, states);
 
-    await animateStates(states, 340, (t, state) => {
+    await animateStates(states, 140, (t, state) => {
       const e = easeInOutCubic(t);
       const lift = Math.sin(t * Math.PI) * -30;
       const pop = 1 + Math.sin(t * Math.PI) * 0.08;
@@ -224,7 +224,7 @@
       };
     });
 
-    await animateStates(states, 90, (t, state) => {
+    await animateStates(states, 45, (t, state) => {
       const e = easeOutCubic(t);
       const settle = 1 + (1 - e) * 0.04;
       return {

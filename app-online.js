@@ -336,9 +336,6 @@ function renderBoard() {
 }
 
 function renderRack() {
-  if (rackReturnAnimating) {
-    return;
-  }
   if (rackShuffleAnimating && !rackEl.classList.contains("is-shuffle-prep")) {
     return;
   }
@@ -379,27 +376,33 @@ async function runPendingTileReturn() {
     return;
   }
   pendingTileReturn = null;
-  rackReturnAnimating = true;
-  try {
-    const toRect =
-      pending.rackIndex != null
-        ? window.GlobbleRackReturn?.getSlotRect(rackEl, pending.rackIndex)
-        : null;
-    if (pending.fromRect && toRect && pending.tile && window.GlobbleRackReturn) {
-      await window.GlobbleRackReturn.playQuick({
-        fromRect: pending.fromRect,
-        toRect,
-        tile: pending.tile
-      });
-    }
-  } finally {
-    rackReturnAnimating = false;
+  const toRect =
+    pending.rackIndex != null
+      ? window.GlobbleRackReturn?.getSlotRect(rackEl, pending.rackIndex)
+      : null;
+  const slotEl =
+    pending.rackIndex != null
+      ? rackEl.querySelector(`.rack-slot[data-rack-slot="${pending.rackIndex}"]`)
+      : null;
+  const slotTileEl = slotEl?.querySelector(".tile");
+  if (slotTileEl) {
+    slotTileEl.style.visibility = "hidden";
   }
-  renderRack();
-  if (pending.rackIndex != null) {
-    const slotEl = rackEl.querySelector(`.rack-slot[data-rack-slot="${pending.rackIndex}"]`);
+  const finishReturn = () => {
+    if (slotTileEl) {
+      slotTileEl.style.visibility = "";
+    }
     slotEl?.classList.add("rack-slot-pop");
-    window.setTimeout(() => slotEl?.classList.remove("rack-slot-pop"), 220);
+    window.setTimeout(() => slotEl?.classList.remove("rack-slot-pop"), 100);
+  };
+  if (pending.fromRect && toRect && pending.tile && window.GlobbleRackReturn) {
+    void window.GlobbleRackReturn.playQuick({
+      fromRect: pending.fromRect,
+      toRect,
+      tile: pending.tile
+    }).finally(finishReturn);
+  } else {
+    finishReturn();
   }
 }
 
@@ -485,18 +488,13 @@ function renderAll() {
   roomDisplayEl.textContent = "";
   renderBoard();
   renderBagCount();
+  renderRack();
   if (pendingTileReturn) {
-    void runPendingTileReturn().then(() => {
-      renderScores();
-      renderGameMessage();
-      setControlsDisabled(!canInteract() || !!gameState.gameOver);
-    });
-  } else {
-    renderRack();
-    renderScores();
-    renderGameMessage();
-    setControlsDisabled(!canInteract() || !!gameState.gameOver);
+    void runPendingTileReturn();
   }
+  renderScores();
+  renderGameMessage();
+  setControlsDisabled(!canInteract() || !!gameState.gameOver);
 
   const names = gameState.players || [];
   const cp = gameState.currentPlayer;
@@ -513,7 +511,7 @@ function renderAll() {
 }
 
 function returnBoardTileToRack(row, col, preferredRackSlot = null, dropPoint = null) {
-  if (!canInteract() || rackReturnAnimating) {
+  if (!canInteract()) {
     return;
   }
   const placement = (gameState.pendingPlacements || []).find(
@@ -710,7 +708,7 @@ async function handlePointerTileDrop(clientX, clientY) {
     return;
   }
 
-  if (draggingTurnTilePos && !rackReturnAnimating) {
+  if (draggingTurnTilePos) {
     returnBoardTileToRack(draggingTurnTilePos.row, draggingTurnTilePos.col, slotIndex, {
       clientX,
       clientY
@@ -950,7 +948,7 @@ if (window.GlobbleRackReorder) {
     getDraggingRackIndex: () => draggingRackIndex,
     getDraggingBoardPos: () => draggingTurnTilePos,
     canReturnToRack: () =>
-      canInteract() && draggingTurnTilePos !== null && !rackReturnAnimating,
+      canInteract() && draggingTurnTilePos !== null,
     onReturnToRack(row, col, preferredSlot, dropPoint) {
       returnBoardTileToRack(row, col, preferredSlot, dropPoint);
       onAnyDragEnd();
@@ -980,12 +978,10 @@ if (window.GlobbleTilePointerDrag) {
       !!gameState.gameStarted &&
       !gameState.gameOver &&
       !!gameState.isMyTurn &&
-      !rackReturnAnimating &&
       !rackShuffleAnimating &&
       rackEl?.dataset.shuffling !== "1",
     canReorder: () => canInteract() && draggingRackIndex !== null,
-    canReturnToRack: () =>
-      canInteract() && draggingTurnTilePos !== null && !rackReturnAnimating,
+    canReturnToRack: () => canInteract() && draggingTurnTilePos !== null,
     getDraggingRackIndex: () => draggingRackIndex,
     getDraggingBoardPos: () => draggingTurnTilePos,
     onRackDragStart(rackIndex) {

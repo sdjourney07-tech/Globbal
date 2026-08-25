@@ -3,7 +3,7 @@
  * Board stays stationary while dragging; zoom is unchanged from board-zoom.js.
  */
 (function tilePointerDrag() {
-  const DRAG_THRESHOLD_PX = 8;
+  const DRAG_THRESHOLD_PX = 4;
   let options = null;
   let pending = null;
   let pointerDragging = false;
@@ -173,7 +173,7 @@
     }
 
     pointerDragging = false;
-    suppressClickUntil = Date.now() + 350;
+    suppressClickUntil = Date.now() + 80;
 
     try {
       await options.onDrop(event.clientX, event.clientY);
