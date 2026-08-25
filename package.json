@@ -28,7 +28,8 @@
     "fill:geonames-api": "node scripts/fill-remaining-geonames-metadata.cjs",
     "build:logo": "node scripts/build-logo-assets.cjs",
     "build:logo-wordmark": "node scripts/generate-logo-wordmark.cjs",
-    "build:ancient": "node scripts/build-ancient-dictionary.cjs"
+    "build:ancient": "node scripts/build-ancient-dictionary.cjs",
+    "strip:mountains-hills": "node --max-old-space-size=8192 scripts/strip-mountains-hills.cjs"
   },
   "dependencies": {
     "dotenv": "^17.4.2",
