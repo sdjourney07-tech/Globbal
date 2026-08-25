@@ -9,12 +9,26 @@
   let pointerDragging = false;
   let suppressClickUntil = 0;
 
+  function isTileDraggable(tile) {
+    if (!(tile instanceof Element)) {
+      return false;
+    }
+    if (tile.draggable === true || tile.getAttribute("draggable") === "true") {
+      return true;
+    }
+    // Rack tiles are often <button>; draggable may not reflect as an attribute.
+    if (tile.closest(".rack") && options?.canInteract?.()) {
+      return true;
+    }
+    return false;
+  }
+
   function getDraggableTile(target) {
     if (!(target instanceof Element)) {
       return null;
     }
     const tile = target.closest(".tile");
-    if (!tile || tile.getAttribute("draggable") !== "true") {
+    if (!tile || !isTileDraggable(tile)) {
       return null;
     }
     return tile;

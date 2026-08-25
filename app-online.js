@@ -110,6 +110,15 @@ function connectThen(afterOpen) {
   ws.addEventListener("message", onWsMessage);
 }
 
+function tryEnterPendingGame() {
+  if (!pendingEnterGameId || !ws || ws.readyState !== WebSocket.OPEN || !ws.__globbleAuthed) {
+    return;
+  }
+  const gameId = pendingEnterGameId;
+  pendingEnterGameId = null;
+  sendAction({ type: "enterGame", gameId });
+}
+
 function enterGame(gameId) {
   if (!window.GlobbleAccounts?.getToken?.()) {
     messageEl.textContent = "Sign in from the main menu first.";
@@ -120,11 +129,7 @@ function enterGame(gameId) {
   }
   pendingEnterGameId = gameId;
   connectThen(() => {
-    if (ws && ws.__globbleAuthed && pendingEnterGameId) {
-      const id = pendingEnterGameId;
-      pendingEnterGameId = null;
-      sendAction({ type: "enterGame", gameId: id });
-    }
+    tryEnterPendingGame();
   });
 }
 
@@ -137,11 +142,7 @@ function onWsMessage(ev) {
   }
   if (msg.type === "authed") {
     if (ws) ws.__globbleAuthed = true;
-    if (pendingEnterGameId) {
-      const gameId = pendingEnterGameId;
-      pendingEnterGameId = null;
-      sendAction({ type: "enterGame", gameId });
-    }
+    tryEnterPendingGame();
     return;
   }
   if (msg.type === "state") {
@@ -195,11 +196,21 @@ function premiumText(premium, row, col, boardRows, boardCols) {
   return "";
 }
 
+function setTileDraggable(tileEl, enabled) {
+  tileEl.draggable = enabled;
+  if (enabled) {
+    tileEl.setAttribute("draggable", "true");
+  } else {
+    tileEl.removeAttribute("draggable");
+  }
+}
+
 function createTileElement(tile, interactive) {
-  const tileEl = document.createElement(interactive ? "button" : "div");
+  const tileEl = document.createElement("div");
   tileEl.className = "tile";
   if (interactive) {
-    tileEl.type = "button";
+    tileEl.setAttribute("role", "button");
+    tileEl.tabIndex = 0;
   }
   const isUnassignedBlank = tile.isBlank && tile.letter === "?";
   if (isUnassignedBlank) {
@@ -321,9 +332,7 @@ function renderBoard() {
       } else {
         const tileEl = createTileElement(cell.tile, false);
         const unlocked = !cell.tile.locked && canInteract();
-        if (unlocked) {
-          tileEl.draggable = true;
-        }
+        setTileDraggable(tileEl, unlocked);
         cellEl.appendChild(tileEl);
         if (cell.tile.locked && window.GlobblePlaceInfo) {
           window.GlobblePlaceInfo.bindLockedCellPlaceTip(cellEl, board, row, col);
@@ -354,7 +363,7 @@ function renderRack() {
     if (tile) {
       const tileEl = createTileElement(tile, true);
       const usable = canInteract();
-      tileEl.draggable = usable;
+      setTileDraggable(tileEl, usable);
       if (index === selectedRackIndex) {
         tileEl.classList.add("selected");
       }
@@ -504,7 +513,7 @@ function renderAll() {
   } else if (gameState.isMyTurn) {
     turnInfoEl.textContent = `Your turn (${activeName})`;
   } else {
-    turnInfoEl.textContent = `${activeName}'s turn`;
+    turnInfoEl.textContent = `Waiting — ${activeName}'s turn`;
   }
 
   window.GlobbleBoardZoom?.syncFromTiles(gameState.pendingPlacements || [], boardEl);

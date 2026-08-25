@@ -602,7 +602,7 @@ function syncBoardCellEl(row, col, { bindPlaceTip = true } = {}) {
     showQwGold && !cell.tile.qwPlated ? { ...cell.tile, qwPlated: true } : cell.tile;
   const tileEl = createTileElement(tileForEl, false);
   if (!cell.tile.locked) {
-    tileEl.draggable = true;
+    setTileDraggable(tileEl, true);
   }
   cellEl.appendChild(tileEl);
   if (bindPlaceTip && cell.tile.locked && window.GlobblePlaceInfo) {
@@ -963,7 +963,7 @@ function renderRack(dealIn = false) {
     const tile = rack[index];
     if (tile) {
       const tileEl = createTileElement(tile, true);
-      tileEl.draggable = true;
+      setTileDraggable(tileEl, true);
       if (index === selectedRackIndex) {
         tileEl.classList.add("selected");
       }
@@ -1030,11 +1030,21 @@ function tileBackToRack(tile) {
   return { ...tile, locked: false };
 }
 
+function setTileDraggable(tileEl, enabled) {
+  tileEl.draggable = enabled;
+  if (enabled) {
+    tileEl.setAttribute("draggable", "true");
+  } else {
+    tileEl.removeAttribute("draggable");
+  }
+}
+
 function createTileElement(tile, interactive) {
-  const tileEl = document.createElement(interactive ? "button" : "div");
+  const tileEl = document.createElement("div");
   tileEl.className = "tile";
   if (interactive) {
-    tileEl.type = "button";
+    tileEl.setAttribute("role", "button");
+    tileEl.tabIndex = 0;
   }
   const isUnassignedBlank = tile.isBlank && tile.letter === "?";
   if (isUnassignedBlank) {
