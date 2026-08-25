@@ -937,6 +937,11 @@ body.wiki-reveal-open .play-layout {
   cursor: grab;
 }
 
+.rack .tile[draggable="true"] > *,
+.board .tile[draggable="true"] > * {
+  pointer-events: none;
+}
+
 .rack .tile[draggable="true"]:active,
 .board .tile[draggable="true"]:active {
   cursor: grabbing;

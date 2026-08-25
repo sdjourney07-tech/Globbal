@@ -1,6 +1,6 @@
 /**
  * Touch-friendly tile pick-and-drop (HTML5 drag is unreliable on mobile).
- * Desktop mouse uses native HTML5 drag; touch/pen uses pointer tracking.
+ * Pointer drag is used for mouse, touch, and pen so desktop and mobile behave the same.
  */
 (function tilePointerDrag() {
   const DRAG_THRESHOLD_PX = 4;
@@ -8,10 +8,6 @@
   let pending = null;
   let pointerDragging = false;
   let suppressClickUntil = 0;
-
-  function prefersPointerDrag(event) {
-    return event.pointerType === "touch" || event.pointerType === "pen";
-  }
 
   function isTileDraggable(tile) {
     if (!(tile instanceof Element)) {
@@ -80,11 +76,6 @@
 
     const tile = getDraggableTile(event.target);
     if (!tile) {
-      return;
-    }
-
-    // Mouse uses native HTML5 drag (dragstart). Pointer drag only for touch/pen.
-    if (!prefersPointerDrag(event)) {
       return;
     }
 
@@ -205,6 +196,11 @@
   }
 
   function onNativeDragStart(event) {
+    // Pointer drag handles tiles on all devices; suppress HTML5 drag so they do not fight.
+    if (getDraggableTile(event.target)) {
+      event.preventDefault();
+      return;
+    }
     if (pointerDragging) {
       event.preventDefault();
       return;

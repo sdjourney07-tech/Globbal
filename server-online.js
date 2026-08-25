@@ -74,7 +74,7 @@ function sendStaticFile(req, res, file, ext) {
     };
     if (LONG_CACHE_EXTS.has(ext)) {
       const liveJs = path.basename(file);
-      if (liveJs === "app-online.js" || liveJs === "app.js") {
+      if (liveJs === "app-online.js" || liveJs === "app.js" || liveJs === "tile-pointer-drag.js") {
         headers["Cache-Control"] = "no-cache";
       } else {
         headers["Cache-Control"] = "public, max-age=86400";
