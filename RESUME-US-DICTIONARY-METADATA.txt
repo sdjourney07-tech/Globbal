@@ -1,0 +1,34 @@
+Saved for later — U.S. city country + population in the Dictionary
+===================================================================
+
+Problem
+-------
+The bundled data/world-cities.csv in this project has no "United States"
+rows, so place-metadata.json never got U.S. cities. The dictionary table
+then shows "—" for country/population for those words.
+
+What is ready
+-------------
+scripts/augment-us-metadata.cjs — downloads the full U.S. slice of
+OpenDataSoft's GeoNames export (cities with population >= 1000) as CSV,
+matches LOCKED_WORDS by the same ASCII normalization as the game, and
+writes country "United States" + population into place-metadata.json
+for matching words (adds new keys; can bump population if already US).
+
+When you have time / network
+----------------------------
+From the project folder (Globbal):
+
+  npm run augment:us
+
+Or:
+
+  node scripts/augment-us-metadata.cjs
+
+Expect a large CSV download and a minute or two of parsing. Then hard-
+refresh the game page (Ctrl+F5) so place-metadata.json reloads.
+
+Optional order
+-------------
+1) npm run build:places   (refresh global metadata from GeoNames + CSV)
+2) npm run augment:us     (fill U.S. gaps from OpenDataSoft CSV)

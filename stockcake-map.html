@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>StockCake map workshop — Globbal</title>
+    <link rel="stylesheet" href="./styles-stockcake-map.css" />
+  </head>
+  <body>
+    <header class="workshop-header">
+      <h1>StockCake map workshop</h1>
+      <p class="workshop-lead">
+        Drag the crop box to frame the compass rose. Resize from the corner handle. Use the
+        previews below to check extractions before applying them to the splash screen.
+      </p>
+      <nav class="workshop-nav">
+        <a href="./splash.html">Back to splash</a>
+        <a href="./">Main menu</a>
+      </nav>
+    </header>
+
+    <main class="workshop-main">
+      <section class="workshop-stage" aria-label="Source map">
+        <div class="map-frame" id="mapFrame">
+          <img
+            id="sourceMap"
+            class="source-map"
+            src="./assets/ancient-compass-map.png"
+            alt="Ancient compass map reference"
+            draggable="false"
+          />
+          <div class="crop-widget" id="compassCrop" aria-label="Compass crop region">
+            <div class="crop-drag" id="cropDrag"></div>
+            <div class="crop-resize" id="cropResize" title="Resize crop"></div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="workshop-panel">
+        <h2>Extractions</h2>
+
+        <figure class="preview-block">
+          <figcaption>Compass rose crop</figcaption>
+          <canvas id="compassPreview" width="220" height="220" aria-label="Compass crop preview"></canvas>
+        </figure>
+
+        <figure class="preview-block">
+          <figcaption>On splash parchment</figcaption>
+          <div class="parchment-mock" id="parchmentMock">
+            <canvas id="parchmentPreview" width="280" height="420" aria-label="Parchment composite preview"></canvas>
+          </div>
+        </figure>
+
+        <dl class="crop-stats" id="cropStats"></dl>
+
+        <button type="button" class="workshop-btn" id="resetCropBtn">Reset crop box</button>
+        <button type="button" class="workshop-btn workshop-btn-primary" id="downloadCropBtn">
+          Download compass PNG
+        </button>
+      </aside>
+    </main>
+
+    <script src="./stockcake-map.js"></script>
+  </body>
+</html>

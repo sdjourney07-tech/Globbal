@@ -1,0 +1,153 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Compass rose">
+  <defs>
+    <linearGradient id="goldPoint" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffe566" />
+      <stop offset="42%" stop-color="#f5c518" />
+      <stop offset="100%" stop-color="#c88a00" />
+    </linearGradient>
+    <linearGradient id="goldPointHi" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fff3b0" />
+      <stop offset="50%" stop-color="#ffd428" />
+      <stop offset="100%" stop-color="#d49a08" />
+    </linearGradient>
+    <linearGradient id="navyPoint" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2a3d62" />
+      <stop offset="50%" stop-color="#162238" />
+      <stop offset="100%" stop-color="#0a101c" />
+    </linearGradient>
+    <linearGradient id="navyPointHi" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3a5278" />
+      <stop offset="100%" stop-color="#101828" />
+    </linearGradient>
+    <radialGradient id="hubFace" cx="50%" cy="44%" r="58%">
+      <stop offset="0%" stop-color="#243552" />
+      <stop offset="100%" stop-color="#0d1524" />
+    </radialGradient>
+  </defs>
+
+  <!-- Outer chart rings -->
+  <circle cx="100" cy="100" r="95" fill="none" stroke="#1a1208" stroke-width="1.1" />
+  <circle cx="100" cy="100" r="88.5" fill="none" stroke="#1a1208" stroke-width="0.75" />
+
+  <!-- Tick marks between rings -->
+  <g stroke="#1a1208" stroke-width="0.55" stroke-linecap="round" opacity="0.85">
+    <g transform="translate(100 100)">
+      <line y1="-95" y2="-88.5" transform="rotate(0)" />
+      <line y1="-95" y2="-88.5" transform="rotate(11.25)" />
+      <line y1="-95" y2="-88.5" transform="rotate(22.5)" />
+      <line y1="-95" y2="-88.5" transform="rotate(33.75)" />
+      <line y1="-95" y2="-88.5" transform="rotate(45)" />
+      <line y1="-95" y2="-88.5" transform="rotate(56.25)" />
+      <line y1="-95" y2="-88.5" transform="rotate(67.5)" />
+      <line y1="-95" y2="-88.5" transform="rotate(78.75)" />
+      <line y1="-95" y2="-88.5" transform="rotate(90)" />
+      <line y1="-95" y2="-88.5" transform="rotate(101.25)" />
+      <line y1="-95" y2="-88.5" transform="rotate(112.5)" />
+      <line y1="-95" y2="-88.5" transform="rotate(123.75)" />
+      <line y1="-95" y2="-88.5" transform="rotate(135)" />
+      <line y1="-95" y2="-88.5" transform="rotate(146.25)" />
+      <line y1="-95" y2="-88.5" transform="rotate(157.5)" />
+      <line y1="-95" y2="-88.5" transform="rotate(168.75)" />
+      <line y1="-95" y2="-88.5" transform="rotate(180)" />
+      <line y1="-95" y2="-88.5" transform="rotate(191.25)" />
+      <line y1="-95" y2="-88.5" transform="rotate(202.5)" />
+      <line y1="-95" y2="-88.5" transform="rotate(213.75)" />
+      <line y1="-95" y2="-88.5" transform="rotate(225)" />
+      <line y1="-95" y2="-88.5" transform="rotate(236.25)" />
+      <line y1="-95" y2="-88.5" transform="rotate(247.5)" />
+      <line y1="-95" y2="-88.5" transform="rotate(258.75)" />
+      <line y1="-95" y2="-88.5" transform="rotate(270)" />
+      <line y1="-95" y2="-88.5" transform="rotate(281.25)" />
+      <line y1="-95" y2="-88.5" transform="rotate(292.5)" />
+      <line y1="-95" y2="-88.5" transform="rotate(303.75)" />
+      <line y1="-95" y2="-88.5" transform="rotate(315)" />
+      <line y1="-95" y2="-88.5" transform="rotate(326.25)" />
+      <line y1="-95" y2="-88.5" transform="rotate(337.5)" />
+      <line y1="-95" y2="-88.5" transform="rotate(348.75)" />
+    </g>
+  </g>
+
+  <!-- 16-point portolan rose: long gold cardinals, medium navy intercardinals, short alternating -->
+  <g stroke="#1a1208" stroke-width="0.65" stroke-linejoin="round">
+    <!-- Long gold: N E S W -->
+    <g fill="url(#goldPoint)">
+      <path d="M100 8 L108.5 74 L100 66 L91.5 74 Z" />
+      <path d="M100 8 L108.5 74 L100 66 L91.5 74 Z" transform="rotate(90 100 100)" />
+      <path d="M100 8 L108.5 74 L100 66 L91.5 74 Z" transform="rotate(180 100 100)" />
+      <path d="M100 8 L108.5 74 L100 66 L91.5 74 Z" transform="rotate(270 100 100)" />
+    </g>
+
+    <!-- Medium navy: NE SE SW NW -->
+    <g fill="url(#navyPoint)">
+      <path d="M100 22 L105.5 70 L100 64 L94.5 70 Z" transform="rotate(45 100 100)" />
+      <path d="M100 22 L105.5 70 L100 64 L94.5 70 Z" transform="rotate(135 100 100)" />
+      <path d="M100 22 L105.5 70 L100 64 L94.5 70 Z" transform="rotate(225 100 100)" />
+      <path d="M100 22 L105.5 70 L100 64 L94.5 70 Z" transform="rotate(315 100 100)" />
+    </g>
+
+    <!-- Short navy -->
+    <g fill="url(#navyPointHi)">
+      <path d="M100 28 L103.2 64 L100 60.5 L96.8 64 Z" transform="rotate(22.5 100 100)" />
+      <path d="M100 28 L103.2 64 L100 60.5 L96.8 64 Z" transform="rotate(112.5 100 100)" />
+      <path d="M100 28 L103.2 64 L100 60.5 L96.8 64 Z" transform="rotate(202.5 100 100)" />
+      <path d="M100 28 L103.2 64 L100 60.5 L96.8 64 Z" transform="rotate(292.5 100 100)" />
+    </g>
+
+    <!-- Short gold -->
+    <g fill="url(#goldPointHi)">
+      <path d="M100 28 L103.2 64 L100 60.5 L96.8 64 Z" transform="rotate(67.5 100 100)" />
+      <path d="M100 28 L103.2 64 L100 60.5 L96.8 64 Z" transform="rotate(157.5 100 100)" />
+      <path d="M100 28 L103.2 64 L100 60.5 L96.8 64 Z" transform="rotate(247.5 100 100)" />
+      <path d="M100 28 L103.2 64 L100 60.5 L96.8 64 Z" transform="rotate(337.5 100 100)" />
+    </g>
+  </g>
+
+  <!-- Inner ring band -->
+  <circle cx="100" cy="100" r="58" fill="none" stroke="#1a1208" stroke-width="0.85" />
+  <circle cx="100" cy="100" r="52" fill="none" stroke="#1a1208" stroke-width="0.55" opacity="0.75" />
+
+  <!-- Mid-band ornaments between cardinals -->
+  <g fill="none" stroke="#1a1208" stroke-width="0.55" stroke-linecap="round" opacity="0.8">
+    <g transform="translate(100 100)">
+      <path d="M0 -82 L0 -76 M-2.5 -79 L2.5 -79" transform="rotate(22.5)" />
+      <path d="M0 -82 L0 -76 M-2.5 -79 L2.5 -79" transform="rotate(67.5)" />
+      <path d="M0 -82 L0 -76 M-2.5 -79 L2.5 -79" transform="rotate(112.5)" />
+      <path d="M0 -82 L0 -76 M-2.5 -79 L2.5 -79" transform="rotate(157.5)" />
+      <path d="M0 -82 L0 -76 M-2.5 -79 L2.5 -79" transform="rotate(202.5)" />
+      <path d="M0 -82 L0 -76 M-2.5 -79 L2.5 -79" transform="rotate(247.5)" />
+      <path d="M0 -82 L0 -76 M-2.5 -79 L2.5 -79" transform="rotate(292.5)" />
+      <path d="M0 -82 L0 -76 M-2.5 -79 L2.5 -79" transform="rotate(337.5)" />
+    </g>
+  </g>
+
+  <!-- Central hub -->
+  <circle cx="100" cy="100" r="20" fill="none" stroke="#f0c020" stroke-width="1.6" />
+  <circle cx="100" cy="100" r="16" fill="url(#hubFace)" stroke="#1a1208" stroke-width="0.75" />
+
+  <g fill="#ffd428" stroke="#1a1208" stroke-width="0.45" stroke-linejoin="round">
+    <path d="M100 88 L103 98 L100 95 L97 98 Z" />
+    <path d="M100 88 L103 98 L100 95 L97 98 Z" transform="rotate(45 100 100)" />
+    <path d="M100 88 L103 98 L100 95 L97 98 Z" transform="rotate(90 100 100)" />
+    <path d="M100 88 L103 98 L100 95 L97 98 Z" transform="rotate(135 100 100)" />
+    <path d="M100 88 L103 98 L100 95 L97 98 Z" transform="rotate(180 100 100)" />
+    <path d="M100 88 L103 98 L100 95 L97 98 Z" transform="rotate(225 100 100)" />
+    <path d="M100 88 L103 98 L100 95 L97 98 Z" transform="rotate(270 100 100)" />
+    <path d="M100 88 L103 98 L100 95 L97 98 Z" transform="rotate(315 100 100)" />
+  </g>
+
+  <circle cx="100" cy="100" r="3.2" fill="#ffe566" stroke="#1a1208" stroke-width="0.45" />
+
+  <!-- Cardinal labels -->
+  <g
+    font-family="Georgia, 'Times New Roman', Times, serif"
+    font-size="15.6"
+    font-weight="700"
+    fill="#1a1208"
+    text-anchor="middle"
+  >
+    <text x="100" y="18">N</text>
+    <text x="182" y="105">E</text>
+    <text x="100" y="188">S</text>
+    <text x="18" y="105">W</text>
+  </g>
+</svg>

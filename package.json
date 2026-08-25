@@ -1,0 +1,38 @@
+{
+  "name": "globble",
+  "private": true,
+  "scripts": {
+    "start": "node server-online.js",
+    "start:local": "node server-online.js",
+    "start:mobile": "node server-online.js",
+    "start:online": "node server-online.js",
+    "start:static": "node serve-local.js",
+    "build:categories": "node scripts/build-dictionary-categories.cjs",
+    "apply:display-names": "node scripts/apply-dictionary-display-names.cjs",
+    "add:countries": "node scripts/add-countries-to-dictionary.cjs",
+    "apply:country-aliases": "node scripts/apply-country-aliases.cjs",
+    "add:abbreviations": "node scripts/add-abbreviations-to-dictionary.cjs",
+    "add:states": "node scripts/add-us-states-to-dictionary.cjs",
+    "add:uk-ireland-counties": "node scripts/add-uk-ireland-counties-to-dictionary.cjs",
+    "add:rivers": "node scripts/add-rivers-to-dictionary.cjs",
+    "add:water-bodies": "node scripts/add-water-bodies-to-dictionary.cjs",
+    "add:mountains": "node scripts/add-mountains-to-dictionary.cjs",
+    "build:islands": "node scripts/build-world-islands-data.cjs",
+    "add:landforms": "node scripts/add-landforms-to-dictionary.cjs",
+    "filter:min-pop": "node scripts/filter-dictionary-min-pop.cjs",
+    "filter:world-min-pop": "node scripts/filter-world-cities-min-pop.cjs",
+    "remove:digit-words": "node scripts/remove-digit-words.cjs",
+    "augment:us-states": "node scripts/augment-us-city-states.cjs",
+    "augment:us": "node scripts/augment-us-metadata.cjs",
+    "augment:wikipedia": "node scripts/augment-wikipedia-links.cjs",
+    "fill:geonames-api": "node scripts/fill-remaining-geonames-metadata.cjs",
+    "build:logo": "node scripts/build-logo-assets.cjs",
+    "build:logo-wordmark": "node scripts/generate-logo-wordmark.cjs",
+    "build:ancient": "node scripts/build-ancient-dictionary.cjs"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "mongodb": "^7.6.0",
+    "ws": "^8.20.0"
+  }
+}

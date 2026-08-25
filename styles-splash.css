@@ -1,0 +1,423 @@
+.splash-body {
+  margin: 0;
+  min-height: 100dvh;
+  overflow: hidden;
+  background: #362518;
+  --tile: #dfd3bc;
+  --tile-engrave: #2a1810;
+  --tile-border-light: #f2e9dc;
+  --tile-border-mid: #b8a688;
+  --tile-border-dark: #786850;
+  --tile-highlight: #8b5a2b;
+  --tile-grain: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  --tile-bg-image:
+    var(--tile-grain),
+    repeating-linear-gradient(
+      94deg,
+      transparent 0,
+      rgba(80, 62, 42, 0.06) 1px,
+      transparent 2px,
+      transparent 5px
+    ),
+    repeating-linear-gradient(
+      6deg,
+      transparent 0,
+      rgba(255, 250, 242, 0.03) 1px,
+      transparent 3px,
+      transparent 7px
+    ),
+    radial-gradient(ellipse 90% 70% at 28% 18%, rgba(255, 252, 246, 0.42), transparent 62%),
+    radial-gradient(ellipse 75% 60% at 78% 88%, rgba(90, 68, 46, 0.12), transparent 55%),
+    linear-gradient(168deg, #eee3d4 0%, #e2d6c0 42%, #d0c4a8 78%, #beb094 100%);
+  --tile-bg-image-hover:
+    var(--tile-grain),
+    repeating-linear-gradient(
+      94deg,
+      transparent 0,
+      rgba(80, 62, 42, 0.05) 1px,
+      transparent 2px,
+      transparent 5px
+    ),
+    repeating-linear-gradient(
+      6deg,
+      transparent 0,
+      rgba(255, 250, 242, 0.04) 1px,
+      transparent 3px,
+      transparent 7px
+    ),
+    radial-gradient(ellipse 90% 70% at 28% 18%, rgba(255, 252, 246, 0.48), transparent 62%),
+    radial-gradient(ellipse 75% 60% at 78% 88%, rgba(90, 68, 46, 0.1), transparent 55%),
+    linear-gradient(168deg, #f2eadc 0%, #e6d9c4 42%, #d4c8ae 78%, #c0b29a 100%);
+  --tile-shadow:
+    0 1px 0 rgba(255, 250, 242, 0.38) inset,
+    0 -1px 5px rgba(50, 36, 22, 0.16) inset,
+    1px 3px 3px rgba(42, 26, 15, 0.28),
+    2px 5px 10px rgba(42, 26, 15, 0.36),
+    0 10px 22px rgba(42, 26, 15, 0.42);
+  --tile-shadow-hover:
+    0 1px 0 rgba(255, 250, 242, 0.38) inset,
+    0 -1px 5px rgba(50, 36, 22, 0.16) inset,
+    2px 5px 5px rgba(42, 26, 15, 0.3),
+    3px 8px 14px rgba(42, 26, 15, 0.38),
+    0 12px 26px rgba(42, 26, 15, 0.44);
+  --tile-engrave-shadow:
+    1px 1px 0 rgba(255, 248, 235, 0.35),
+    0 1px 1px rgba(20, 12, 6, 0.6),
+    -1px -1px 0 rgba(255, 250, 242, 0.22);
+}
+
+.splash-screen {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  max-width: 430px;
+  margin-inline: auto;
+  container-type: size;
+  opacity: 1;
+  cursor: pointer;
+  overflow: hidden;
+  transition: opacity 520ms ease;
+  padding:
+    max(0px, env(safe-area-inset-top, 0px))
+    max(0px, env(safe-area-inset-right, 0px))
+    max(0px, env(safe-area-inset-bottom, 0px))
+    max(0px, env(safe-area-inset-left, 0px));
+  box-shadow: 0 0 0 1px rgba(42, 26, 15, 0.06);
+  --splash-gutter: clamp(14px, 4.2cqw, 22px);
+  --map-y-offset: -2.5%;
+  --map-height-limit: 88cqh;
+  --map-height: min(var(--map-height-limit), calc(96cqw * 1024 / 571));
+  --map-top: calc(50% + var(--map-y-offset) - var(--map-height) / 2);
+  --map-center-y: calc(50% + var(--map-y-offset));
+  --map-compass-top: 0.18;
+  --brand-zone-top: var(--map-top);
+  --brand-zone-height: calc(var(--map-height) * var(--map-compass-top));
+  --brand-y-nudge: 17cqh;
+  --map-bottom: calc(var(--map-center-y) + var(--map-height) / 2);
+  --map-radius: clamp(12px, 3.6cqw, 20px);
+}
+
+.splash-screen.is-exiting {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.splash-parchment {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #362518;
+}
+
+.splash-parchment::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.2) 0%,
+    rgba(0, 0, 0, 0) 50%
+  );
+  pointer-events: none;
+}
+
+.splash-parchment-sheet-wrap {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.splash-parchment-sheet {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  transform: scale(1.06);
+  transform-origin: center top;
+  filter: sepia(0.84) brightness(0.83) saturate(1.46) contrast(1.05) hue-rotate(2deg);
+}
+
+.splash-parchment-sheet-shade {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(228, 174, 88, 0.19), rgba(158, 98, 34, 0.31)),
+    radial-gradient(ellipse 94% 88% at 50% 48%, rgba(204, 132, 48, 0.15), rgba(74, 44, 14, 0.29) 100%);
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+.splash-parchment-map {
+  position: absolute;
+  top: calc(50% + var(--map-y-offset));
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: auto;
+  height: var(--map-height);
+  max-width: 96%;
+  aspect-ratio: 571 / 1024;
+  object-fit: contain;
+  border-radius: var(--map-radius);
+  border: 2px solid #2a1810;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 248, 235, 0.28),
+    0 0 0 2px #786850,
+    0 0 0 4px #2a1810,
+    0 4px 14px rgba(42, 26, 15, 0.28);
+  pointer-events: none;
+  user-select: none;
+}
+
+.splash-vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 90% 42% at 50% 18%, rgba(255, 240, 200, 0.29), transparent 68%),
+    radial-gradient(ellipse 92% 88% at 50% 50%, transparent 58%, rgba(54, 34, 12, 0.23) 100%);
+  pointer-events: none;
+}
+
+.splash-compass-widget {
+  display: none;
+}
+
+@supports not (width: 100cqh) {
+  .splash-screen {
+    --map-height: 88%;
+  }
+
+  .splash-brand {
+    height: var(--brand-zone-height);
+  }
+
+  .splash-actions {
+    top: var(--map-bottom);
+    bottom: var(--splash-gutter);
+  }
+}
+
+.splash-compass-widget.is-dragging {
+  cursor: grabbing;
+}
+
+.splash-compass-widget.is-resizing {
+  cursor: nwse-resize;
+}
+
+.splash-compass-drag {
+  position: relative;
+  width: 100%;
+}
+
+.splash-compass-art {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+  transform: rotate(25deg);
+  transform-origin: center center;
+}
+
+.splash-compass-resize {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  background:
+    linear-gradient(135deg, rgba(255, 248, 235, 0.55) 0 44%, transparent 44% 100%),
+    rgba(61, 40, 24, 0.72);
+  border: 1px solid rgba(255, 248, 235, 0.42);
+  box-shadow: 0 1px 3px rgba(42, 26, 15, 0.35);
+  cursor: nwse-resize;
+  opacity: 0.82;
+}
+
+.splash-compass-widget:hover .splash-compass-resize,
+.splash-compass-widget.is-resizing .splash-compass-resize {
+  opacity: 1;
+}
+
+body.splash-compass-active .splash-screen {
+  cursor: inherit;
+}
+
+.splash-brand {
+  position: absolute;
+  z-index: 1;
+  top: var(--brand-zone-top);
+  left: var(--splash-gutter);
+  right: var(--splash-gutter);
+  height: var(--brand-zone-height);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: var(--brand-y-nudge) 0.5rem 0;
+  box-sizing: border-box;
+  text-align: center;
+  pointer-events: none;
+  animation: splash-content-in 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.splash-actions {
+  position: absolute;
+  z-index: 1;
+  top: var(--map-bottom);
+  bottom: var(--splash-gutter);
+  left: var(--splash-gutter);
+  right: var(--splash-gutter);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-inline: auto;
+  padding: 0 0.5rem;
+  text-align: center;
+  width: min(100%, 340px);
+  animation: splash-content-in 900ms cubic-bezier(0.22, 1, 0.36, 1) 120ms both;
+}
+
+.splash-brand .logo-wordmark-wrap {
+  margin: 0;
+  line-height: 0;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.splash-screen .logo-wordmark {
+  width: min(437px, 117cqw);
+  margin-inline: auto;
+  transform: scaleY(1.2);
+  transform-origin: center center;
+}
+
+.splash-tagline {
+  margin: -0.35rem 0 0;
+  font-family: "Segoe UI", Inter, system-ui, sans-serif;
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #3d2818;
+}
+
+.splash-enter {
+  position: relative;
+  margin-top: 0;
+  padding: 0 2.75rem;
+  height: 52px;
+  min-height: 52px;
+  max-height: 52px;
+  min-width: 9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  font-size: calc(1.46rem * 1.5);
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--tile-engrave);
+  text-shadow: var(--tile-engrave-shadow);
+  background-color: var(--tile);
+  background-image: var(--tile-bg-image);
+  border: 1px solid var(--tile-border-mid);
+  border-top-color: var(--tile-border-light);
+  border-left-color: #d4c4a8;
+  border-bottom-color: var(--tile-border-dark);
+  border-right-color: #a89478;
+  border-radius: 8px;
+  box-shadow: var(--tile-shadow);
+  cursor: pointer;
+  isolation: isolate;
+  transition:
+    transform 0.14s ease,
+    box-shadow 0.14s ease,
+    border-color 0.14s ease,
+    background-image 0.14s ease;
+}
+
+.splash-enter::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0.28;
+  mix-blend-mode: multiply;
+  background-image: var(--tile-grain);
+  z-index: 0;
+}
+
+.splash-enter::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 250, 242, 0.28),
+    inset 0 1px 2px rgba(255, 250, 242, 0.15);
+  z-index: 0;
+}
+
+.splash-enter:hover {
+  background-color: var(--tile);
+  background-image: var(--tile-bg-image-hover);
+  border-top-color: #e8dfd0;
+  border-left-color: #b8a890;
+  border-bottom-color: var(--tile-border-dark);
+  border-right-color: #7a684c;
+  transform: translateY(-2px);
+  box-shadow: var(--tile-shadow-hover);
+}
+
+.splash-enter:focus-visible {
+  outline: none;
+  border-color: var(--tile-border-dark);
+  border-top-color: var(--tile-border-mid);
+  transform: translateY(1px);
+  box-shadow:
+    0 1px 0 rgba(255, 250, 242, 0.28) inset,
+    0 2px 6px rgba(42, 26, 15, 0.28) inset,
+    1px 2px 2px rgba(42, 26, 15, 0.16),
+    0 0 0 2px var(--tile-highlight);
+}
+
+.splash-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #5c4632;
+  letter-spacing: 0.02em;
+}
+
+@keyframes splash-content-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splash-brand,
+  .splash-actions {
+    animation: none;
+  }
+
+  .splash-screen {
+    transition: none;
+  }
+}

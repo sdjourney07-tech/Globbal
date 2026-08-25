@@ -1,0 +1,9 @@
+node_modules/
+.env
+.env.local
+data/accounts-store.json
+geonames-cache/
+geonames-ws-cache.json
+*.log
+.DS_Store
+Thumbs.db

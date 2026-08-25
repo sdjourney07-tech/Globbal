@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Globbal — Online</title>
+    <link rel="icon" href="./assets/favicon.ico" sizes="any" />
+    <link rel="icon" href="./assets/logo-mark.svg" type="image/svg+xml" />
+    <link rel="preload" href="./assets/ancient-compass-map-original.png" as="image" />
+    <link rel="preload" href="./assets/parch2copy.png" as="image" />
+    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles-splash.css" />
+    <link
+      rel="stylesheet"
+      href="./styles-mobile.css"
+      media="screen and (max-width: 640px), screen and (max-height: 640px) and (orientation: landscape)"
+    />
+    <style>
+      .online-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: center;
+        margin-bottom: 0.75rem;
+        padding: 0.6rem 0.75rem;
+        border-radius: 8px;
+        background: rgba(52, 36, 20, 0.08);
+      }
+      .online-bar input[type="text"] {
+        width: 7rem;
+        padding: 0.35rem 0.5rem;
+        font-family: ui-monospace, monospace;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .room-code-display {
+        font-weight: 600;
+        font-family: ui-monospace, monospace;
+        letter-spacing: 0.12em;
+      }
+      .conn-status {
+        font-size: 0.85rem;
+        opacity: 0.85;
+      }
+      .local-link {
+        font-size: 0.85rem;
+        margin-left: auto;
+      }
+      .active-games-panel {
+        margin-bottom: 0.75rem;
+        padding: 0.5rem 0.75rem;
+        border-radius: 8px;
+        background: rgba(52, 36, 20, 0.06);
+      }
+      .active-games-panel summary {
+        cursor: pointer;
+        font-weight: 500;
+      }
+      .active-rooms-list {
+        list-style: none;
+        padding: 0;
+        margin: 0.5rem 0 0;
+        font-size: 0.88rem;
+      }
+      .active-rooms-list li {
+        padding: 0.25rem 0;
+        font-family: ui-monospace, monospace;
+      }
+    </style>
+    <style>
+      .parchment-shell.is-game-loading > .play-layout {
+        opacity: 0;
+        visibility: hidden;
+      }
+    </style>
+  </head>
+  <body class="gameplay-body">
+    <main class="app app-gameplay">
+      <div class="play-stage parchment-shell is-game-loading">
+        <div class="splash-parchment" aria-hidden="true">
+          <div class="splash-parchment-sheet-wrap">
+            <img
+              class="splash-parchment-sheet"
+              src="./assets/parch2copy.png"
+              alt=""
+              draggable="false"
+            />
+            <div class="splash-parchment-sheet-shade"></div>
+          </div>
+        </div>
+        <div class="splash-vignette" aria-hidden="true"></div>
+        <div class="game-load-curtain" id="gameLoadCurtain" aria-hidden="true">
+          <img
+            class="splash-parchment-map"
+            src="./assets/ancient-compass-map-original.png"
+            alt=""
+            draggable="false"
+          />
+          <div class="splash-vignette" aria-hidden="true"></div>
+        </div>
+        <div class="play-layout">
+          <header class="play-brand">
+            <div class="play-ad-banner" aria-hidden="true"></div>
+          </header>
+          <div class="play-focus">
+
+          <div id="lobbyPanel" class="lobby-panel">
+            <div class="online-bar">
+              <span class="room-code-display" id="roomDisplay" aria-live="polite">Online match</span>
+              <span class="conn-status" id="connStatus"></span>
+              <a class="local-link" href="./index.html">Main menu</a>
+              <a class="local-link" href="./practice.html">Practice (solo)</a>
+            </div>
+            <p id="lobbyHint" class="hint">
+              Sign in from the main menu, then open a game from <strong>Games</strong> or accept a challenge.
+            </p>
+          </div>
+
+          <div class="play-status" aria-live="polite">
+            <div id="turnInfo" class="status">Connect to play online.</div>
+            <div id="message" class="message"></div>
+          </div>
+
+          <section class="board-wrap">
+            <div class="board-stage">
+              <div id="bagCount" class="board-bag-count" aria-live="polite"></div>
+              <div id="board" class="board"></div>
+            </div>
+          </section>
+
+          <section class="rack-panel">
+            <div id="rack" class="rack"></div>
+          </section>
+          </div>
+
+          <section class="rack-panel controls-rack">
+            <aside class="game-action-rail" aria-label="Game actions">
+              <button type="button" id="submitTurnBtn">Submit Turn</button>
+              <button type="button" id="recallTilesBtn">Recall Tiles</button>
+              <button type="button" id="passTurnBtn">Pass Turn</button>
+              <button type="button" id="shuffleRackBtn">Shuffle Rack</button>
+            </aside>
+
+            <section class="score-strip" aria-label="Scores">
+              <div id="player1Score" class="score score-cell active">Player 1: 0</div>
+              <div class="score-strip-nav">
+                <a href="./index.html" class="score-home-btn" aria-label="Main menu" title="Main menu">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path
+                      fill="currentColor"
+                      d="M12 3.2 4 10v11h6v-7h4v7h6V10L12 3.2zm0 2.4 5 4.5V19h-2v-6H9v6H7v-9.1l5-4.3z"
+                    />
+                  </svg>
+                </a>
+                <a
+                  class="score-dictionary-btn game-dictionary-link"
+                  href="./index.html?dictionary=1&amp;return=./game-online.html"
+                  aria-label="Dictionary"
+                  title="Dictionary"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path
+                      fill="currentColor"
+                      d="M6 3h11a2 2 0 0 1 2 2v14.5a1.5 1.5 0 0 0-1.5-1.5H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm0 2v11h11.7A2 2 0 0 1 18 16V5H6zm2 2h8v2H8V7zm0 4h8v2H8v-2z"
+                    />
+                  </svg>
+                </a>
+              </div>
+              <div id="player2Score" class="score score-cell">Player 2: 0</div>
+            </section>
+          </section>
+        </div>
+      </div>
+    </main>
+
+    <script src="./accounts-client.js"></script>
+    <script src="./board-zoom.js"></script>
+    <script src="./place-info.js"></script>
+    <script src="./rack-shuffle.js"></script>
+    <script src="./rack-return.js"></script>
+    <script src="./rack-reorder.js"></script>
+    <script src="./blank-picker.js"></script>
+    <script src="./dictionary-keys.js"></script>
+    <script src="./dictionary-alias-sources.js"></script>
+    <script src="./dictionary.js"></script>
+    <script src="./pending-word-glow.js"></script>
+    <script src="./invalid-word-toast.js"></script>
+    <script src="./game-load-reveal.js"></script>
+    <script src="./app-online.js"></script>
+  </body>
+</html>

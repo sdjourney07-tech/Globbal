@@ -1,0 +1,8 @@
+[
+  { "name": "Africa", "region": "Africa", "areaKm2": 30365000 },
+  { "name": "Antarctica", "region": "Antarctica", "areaKm2": 14200000 },
+  { "name": "Asia", "region": "Asia", "areaKm2": 44614000 },
+  { "name": "Europe", "region": "Europe", "areaKm2": 10180000 },
+  { "name": "North America", "region": "North America", "areaKm2": 24709000 },
+  { "name": "South America", "region": "South America", "areaKm2": 17840000 }
+]
