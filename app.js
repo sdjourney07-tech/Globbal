@@ -877,7 +877,7 @@ function renderBoard() {
           showQwGold && !cell.tile.qwPlated ? { ...cell.tile, qwPlated: true } : cell.tile;
         const tileEl = createTileElement(tileForEl, false);
         if (!cell.tile.locked) {
-          tileEl.draggable = true;
+          setTileDraggable(tileEl, true);
         }
         cellEl.appendChild(tileEl);
         if (cell.tile.locked && window.GlobblePlaceInfo) {
