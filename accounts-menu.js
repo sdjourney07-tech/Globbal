@@ -55,6 +55,12 @@
     setAuthError("");
     const username = (authUsername?.value || "").trim();
     const password = authPassword?.value || "";
+    if (!username || !password) {
+      setAuthError("Enter both username and password.");
+      return;
+    }
+    if (loginBtn) loginBtn.disabled = true;
+    if (registerBtn) registerBtn.disabled = true;
     try {
       const data = await accounts.api(mode === "register" ? "/api/auth/register" : "/api/auth/login", {
         method: "POST",
@@ -64,7 +70,21 @@
       if (authPassword) authPassword.value = "";
       renderAuthState(data.user);
     } catch (err) {
-      setAuthError(err.message || "Could not sign in.");
+      let message = err.message || "Could not sign in.";
+      if (err.status === 401 && /no account/i.test(message)) {
+        message =
+          "No account with that username. Use Create account, or check you are on the same site where you registered.";
+      } else if (err.status === 401 && /password/i.test(message)) {
+        message = "Incorrect password. Passwords are case-sensitive.";
+      } else if (err.status === 409) {
+        message = err.message || "Username already taken. Try Sign in instead.";
+      } else if (!err.status) {
+        message = "Could not reach the server. Check your connection and try again.";
+      }
+      setAuthError(message);
+    } finally {
+      if (loginBtn) loginBtn.disabled = false;
+      if (registerBtn) registerBtn.disabled = false;
     }
   }
 

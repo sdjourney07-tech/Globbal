@@ -137,7 +137,7 @@
         <section class="landing-card landing-account-card">
           <h2>Account</h2>
           <p>Create an account or sign in to play multiplayer.</p>
-          <form id="authForm" class="landing-auth-form">
+          <form id="authForm" class="landing-auth-form" action="#" method="post">
             <label>
               Username
               <input id="authUsername" name="username" autocomplete="username" maxlength="20" required />
@@ -264,15 +264,26 @@
     </dialog>
     </div>
 
+    <script src="./accounts-client.js"></script>
+    <script src="./accounts-menu.js"></script>
     <script src="./dictionary-keys.js"></script>
     <script>
       (function loadDictionaryScript() {
         const src = window.GLOBBLE_DICTIONARY_SCRIPT || "./dictionary.js";
-        document.write('<script src="' + src + '"><\/script>');
+        const el = document.createElement("script");
+        el.src = src;
+        el.async = true;
+        el.onload = function () {
+          const menu = document.createElement("script");
+          menu.src = "./dictionary-menu.js";
+          document.body.appendChild(menu);
+        };
+        el.onerror = function () {
+          const hint = document.getElementById("dictionaryHint");
+          if (hint) hint.textContent = "Dictionary failed to load. Account login still works.";
+        };
+        document.body.appendChild(el);
       })();
     </script>
-    <script src="./dictionary-menu.js"></script>
-    <script src="./accounts-client.js"></script>
-    <script src="./accounts-menu.js"></script>
   </body>
 </html>

@@ -49,10 +49,21 @@ async function verifyPassword(password, stored) {
   if (parts.length !== 3 || parts[0] !== "scrypt") {
     return false;
   }
-  const salt = Buffer.from(parts[1], "hex");
-  const expected = Buffer.from(parts[2], "hex");
-  const derived = await scrypt(String(password), salt, expected.length);
-  return crypto.timingSafeEqual(Buffer.from(derived), expected);
+  try {
+    const salt = Buffer.from(parts[1], "hex");
+    const expected = Buffer.from(parts[2], "hex");
+    if (!salt.length || !expected.length) {
+      return false;
+    }
+    const derived = await scrypt(String(password), salt, expected.length);
+    const actual = Buffer.isBuffer(derived) ? derived : Buffer.from(derived);
+    if (actual.length !== expected.length) {
+      return false;
+    }
+    return crypto.timingSafeEqual(actual, expected);
+  } catch {
+    return false;
+  }
 }
 
 function newId(prefix) {
@@ -278,12 +289,30 @@ function createFileBackend() {
   };
 }
 
+function resolveMongoDbName(uri) {
+  const fromEnv = String(process.env.MONGODB_DB || "").trim();
+  if (fromEnv) {
+    return fromEnv;
+  }
+  try {
+    const parsed = new URL(uri);
+    const fromPath = decodeURIComponent(parsed.pathname.replace(/^\//, "").split("/")[0] || "").trim();
+    if (fromPath) {
+      return fromPath;
+    }
+  } catch {
+    /* ignore bad URI parse */
+  }
+  return "globble";
+}
+
 async function createMongoBackend(uri) {
   const { MongoClient, ObjectId } = require("mongodb");
   const client = new MongoClient(uri);
   await client.connect();
-  const dbName = process.env.MONGODB_DB || "globble";
+  const dbName = resolveMongoDbName(uri);
   const db = client.db(dbName);
+  process.stdout.write(`[accounts] MongoDB database: ${dbName}\n`);
   const users = db.collection("users");
   const sessions = db.collection("sessions");
   const games = db.collection("games");
