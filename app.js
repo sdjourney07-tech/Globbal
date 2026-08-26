@@ -1016,13 +1016,28 @@ async function maybeRunShuffleAnimation() {
   }
 }
 
+function setScoreChip(el, label, isActive) {
+  if (!el) {
+    return;
+  }
+  el.replaceChildren();
+  if (isActive) {
+    const dot = document.createElement("span");
+    dot.className = "turn-dot";
+    dot.setAttribute("aria-hidden", "true");
+    el.appendChild(dot);
+  }
+  const text = document.createElement("span");
+  text.className = "score-chip-label";
+  text.textContent = label;
+  el.appendChild(text);
+  el.classList.toggle("active", isActive);
+  el.setAttribute("aria-current", isActive ? "true" : "false");
+}
+
 function renderScores() {
-  player1ScoreEl.textContent = `Player 1: ${players[0].score}`;
-  player2ScoreEl.textContent = `Player 2: ${players[1].score}`;
-  player1ScoreEl.classList.toggle("active", currentPlayer === 0);
-  player2ScoreEl.classList.toggle("active", currentPlayer === 1);
-  player1ScoreEl.setAttribute("aria-current", currentPlayer === 0 ? "true" : "false");
-  player2ScoreEl.setAttribute("aria-current", currentPlayer === 1 ? "true" : "false");
+  setScoreChip(player1ScoreEl, `Player 1: ${players[0].score}`, currentPlayer === 0);
+  setScoreChip(player2ScoreEl, `Player 2: ${players[1].score}`, currentPlayer === 1);
 }
 
 function tileBackToRack(tile) {

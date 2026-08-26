@@ -1999,6 +1999,7 @@ body.wiki-reveal-open .play-layout {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 0.35em;
   min-width: 0;
   min-height: var(--score-strip-height);
   height: var(--score-strip-height);
@@ -2008,8 +2009,6 @@ body.wiki-reveal-open .play-layout {
   font-size: clamp(0.58rem, calc(var(--play-width) / 28), 0.8rem);
   line-height: 1.1;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   background-color: var(--tile);
   background-image: var(--tile-bg-image);
   color: var(--tile-text);
@@ -2020,10 +2019,32 @@ body.wiki-reveal-open .play-layout {
   box-shadow: var(--tile-shadow);
 }
 
+.score-strip .score-cell .score-chip-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.score-strip .score-cell .turn-dot,
+.score-cell .turn-dot {
+  display: inline-block;
+  width: 0.55em;
+  height: 0.55em;
+  min-width: 0.55em;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: #2f9e44;
+  box-shadow:
+    0 0 0 1px rgba(20, 80, 30, 0.4),
+    0 0 6px rgba(47, 158, 68, 0.55);
+}
+
 .score-cell {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 0.35em;
   min-height: var(--score-strip-height);
   padding: 6px 8px;
   text-align: center;
@@ -2045,20 +2066,6 @@ body.wiki-reveal-open .play-layout {
   box-shadow:
     var(--tile-shadow-selected),
     0 0 0 2px rgba(47, 158, 68, 0.55);
-  gap: 0.35em;
-}
-
-.score-cell.active::before {
-  content: "";
-  display: inline-block;
-  width: 0.55em;
-  height: 0.55em;
-  border-radius: 50%;
-  flex-shrink: 0;
-  background: #2f9e44;
-  box-shadow:
-    0 0 0 1px rgba(20, 80, 30, 0.4),
-    0 0 6px rgba(47, 158, 68, 0.55);
 }
 
 .rack.is-shuffle-prep:not(.rack-shuffling) .rack-slot .tile {

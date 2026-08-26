@@ -527,19 +527,43 @@ function playerScoreLabel(playerIndex) {
   return defaultName;
 }
 
+function setScoreChip(el, label, isActive, title) {
+  if (!el) {
+    return;
+  }
+  el.replaceChildren();
+  if (isActive) {
+    const dot = document.createElement("span");
+    dot.className = "turn-dot";
+    dot.setAttribute("aria-hidden", "true");
+    el.appendChild(dot);
+  }
+  const text = document.createElement("span");
+  text.className = "score-chip-label";
+  text.textContent = label;
+  el.appendChild(text);
+  el.title = title || label;
+  el.classList.toggle("active", isActive);
+  el.setAttribute("aria-current", isActive ? "true" : "false");
+}
+
 function renderScores() {
   const players = gameState.players || [];
   const p1Name = playerScoreLabel(0);
   const p2Name = playerScoreLabel(1);
-  player1ScoreEl.textContent = `${p1Name}: ${players[0] ? players[0].score : 0}`;
-  player2ScoreEl.textContent = `${p2Name}: ${players[1] ? players[1].score : 0}`;
-  player1ScoreEl.title = p1Name;
-  player2ScoreEl.title = p2Name;
   const cp = gameState.currentPlayer;
-  player1ScoreEl.classList.toggle("active", cp === 0);
-  player2ScoreEl.classList.toggle("active", cp === 1);
-  player1ScoreEl.setAttribute("aria-current", cp === 0 ? "true" : "false");
-  player2ScoreEl.setAttribute("aria-current", cp === 1 ? "true" : "false");
+  setScoreChip(
+    player1ScoreEl,
+    `${p1Name}: ${players[0] ? players[0].score : 0}`,
+    cp === 0,
+    p1Name
+  );
+  setScoreChip(
+    player2ScoreEl,
+    `${p2Name}: ${players[1] ? players[1].score : 0}`,
+    cp === 1,
+    p2Name
+  );
   const myIndex = gameState.myPlayerIndex;
   player1ScoreEl.classList.toggle("is-you", myIndex === 0);
   player2ScoreEl.classList.toggle("is-you", myIndex === 1);
