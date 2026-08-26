@@ -85,6 +85,11 @@
       return;
     }
 
+    // Stop board pan / page scroll from stealing the gesture on mobile.
+    if (event.cancelable && event.pointerType !== "mouse") {
+      event.preventDefault();
+    }
+
     pending = {
       pointerId: event.pointerId,
       tile,
@@ -217,8 +222,14 @@
 
   function init(opts) {
     options = opts;
-    document.addEventListener("pointerdown", onPointerDown, true);
-    document.addEventListener("pointermove", onPointerMove, true);
+    document.addEventListener("pointerdown", onPointerDown, {
+      capture: true,
+      passive: false
+    });
+    document.addEventListener("pointermove", onPointerMove, {
+      capture: true,
+      passive: false
+    });
     document.addEventListener("pointerup", onPointerUp, true);
     document.addEventListener("pointercancel", onPointerUp, true);
 

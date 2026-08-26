@@ -78,7 +78,11 @@ function sendStaticFile(req, res, file, ext) {
         liveJs === "app-online.js" ||
         liveJs === "app.js" ||
         liveJs === "tile-pointer-drag.js" ||
-        liveJs === "board-zoom.js"
+        liveJs === "rack-reorder.js" ||
+        liveJs === "board-zoom.js" ||
+        liveJs === "styles.css" ||
+        liveJs === "styles-splash.css" ||
+        liveJs === "styles-mobile.css"
       ) {
         headers["Cache-Control"] = "no-cache";
       } else {

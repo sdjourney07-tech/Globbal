@@ -1,8 +1,9 @@
 .splash-body {
   margin: 0;
   min-height: 100dvh;
+  min-height: 100svh;
   overflow: hidden;
-  background: #362518;
+  background: #c4a06a;
   --tile: #dfd3bc;
   --tile-engrave: #2a1810;
   --tile-border-light: #f2e9dc;
@@ -68,34 +69,32 @@
 
 .splash-screen {
   position: fixed;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  width: min(100%, 430px);
-  max-width: 430px;
-  margin-inline: auto;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  height: 100svh;
+  margin: 0;
   container-type: size;
   opacity: 1;
   cursor: pointer;
   overflow: hidden;
   transition: opacity 520ms ease;
-  padding:
-    max(0px, env(safe-area-inset-top, 0px))
-    max(0px, env(safe-area-inset-right, 0px))
-    max(0px, env(safe-area-inset-bottom, 0px))
-    max(0px, env(safe-area-inset-left, 0px));
-  box-shadow: 0 0 0 1px rgba(42, 26, 15, 0.06);
+  /* Parchment paints edge-to-edge; safe-area applied to UI layers only */
+  padding: 0;
+  box-shadow: none;
   --splash-gutter: clamp(14px, 4.2cqw, 22px);
+  --compose-max: 430px;
   --map-y-offset: 0%;
-  --map-height-limit: 88cqh;
-  --map-height: min(var(--map-height-limit), calc(96cqw * 1024 / 571));
+  --map-height-limit: 90cqh;
+  --map-width: min(96cqw, var(--compose-max));
+  --map-height: min(var(--map-height-limit), calc(var(--map-width) * 1024 / 571));
   --map-top: calc(50% + var(--map-y-offset) - var(--map-height) / 2);
   --map-center-y: calc(50% + var(--map-y-offset));
   --map-compass-top: 0.18;
   --brand-zone-top: var(--map-top);
   --brand-zone-height: calc(var(--map-height) * var(--map-compass-top));
-  --brand-y-nudge: 12cqh;
+  --brand-y-nudge: 10cqh;
   --map-bottom: calc(var(--map-center-y) + var(--map-height) / 2);
   --map-radius: clamp(12px, 3.6cqw, 20px);
 }
@@ -109,7 +108,8 @@
   position: absolute;
   inset: 0;
   overflow: hidden;
-  background: #362518;
+  /* Paper tone fallback if the asset crops short */
+  background: #c4a06a;
 }
 
 .splash-parchment::after {
@@ -118,8 +118,8 @@
   inset: 0;
   background: linear-gradient(
     180deg,
-    rgba(0, 0, 0, 0.2) 0%,
-    rgba(0, 0, 0, 0) 50%
+    rgba(0, 0, 0, 0.18) 0%,
+    rgba(0, 0, 0, 0) 45%
   );
   pointer-events: none;
 }
@@ -132,12 +132,16 @@
 }
 
 .splash-parchment-sheet {
-  width: 100%;
-  height: 100%;
+  position: absolute;
+  left: 50%;
+  top: 0;
+  /* Asset has black margins around the paper — oversize to crop them out */
+  width: 150%;
+  height: 140%;
+  max-width: none;
+  transform: translate(-50%, -11%);
   object-fit: cover;
-  object-position: center center;
-  transform: scale(1.08);
-  transform-origin: center center;
+  object-position: center top;
   filter: sepia(0.84) brightness(0.83) saturate(1.46) contrast(1.05) hue-rotate(2deg);
 }
 
@@ -156,9 +160,9 @@
   top: calc(50% + var(--map-y-offset));
   left: 50%;
   transform: translate(-50%, -50%);
-  width: auto;
+  width: var(--map-width);
   height: var(--map-height);
-  max-width: 96%;
+  max-width: min(96%, var(--compose-max));
   aspect-ratio: 571 / 1024;
   object-fit: contain;
   border-radius: var(--map-radius);
@@ -251,15 +255,15 @@ body.splash-compass-active .splash-screen {
   position: absolute;
   z-index: 1;
   top: var(--brand-zone-top);
-  left: var(--splash-gutter);
-  right: var(--splash-gutter);
+  left: max(var(--splash-gutter), env(safe-area-inset-left, 0px));
+  right: max(var(--splash-gutter), env(safe-area-inset-right, 0px));
   height: var(--brand-zone-height);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
-  padding: var(--brand-y-nudge) 0.5rem 0;
+  padding: max(var(--brand-y-nudge), env(safe-area-inset-top, 0px)) 0.5rem 0;
   box-sizing: border-box;
   text-align: center;
   pointer-events: none;
@@ -270,9 +274,9 @@ body.splash-compass-active .splash-screen {
   position: absolute;
   z-index: 1;
   top: var(--map-bottom);
-  bottom: var(--splash-gutter);
-  left: var(--splash-gutter);
-  right: var(--splash-gutter);
+  bottom: max(var(--splash-gutter), env(safe-area-inset-bottom, 0px));
+  left: max(var(--splash-gutter), env(safe-area-inset-left, 0px));
+  right: max(var(--splash-gutter), env(safe-area-inset-right, 0px));
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -282,6 +286,7 @@ body.splash-compass-active .splash-screen {
   padding: 0 0.5rem;
   text-align: center;
   width: min(100%, 340px);
+  max-width: var(--compose-max);
   animation: splash-content-in 900ms cubic-bezier(0.22, 1, 0.36, 1) 120ms both;
 }
 
@@ -289,12 +294,13 @@ body.splash-compass-active .splash-screen {
   margin: 0;
   line-height: 0;
   width: 100%;
+  max-width: var(--compose-max);
   display: flex;
   justify-content: center;
 }
 
 .splash-screen .logo-wordmark {
-  width: min(437px, 117cqw);
+  width: min(437px, var(--compose-max), 96cqw);
   margin-inline: auto;
   /* Optical center: wordmark glyphs sit slightly left of the SVG viewBox mid. */
   transform: scaleY(1.2) translateX(1.25%);
@@ -420,5 +426,63 @@ body.splash-compass-active .splash-screen {
 
   .splash-screen {
     transition: none;
+  }
+}
+
+/* Phone: fill the screen; map uses almost the full height */
+@media (max-width: 640px) {
+  .splash-screen {
+    --splash-gutter: clamp(8px, 2.4cqw, 14px);
+    --compose-max: 100%;
+    --map-height-limit: 94cqh;
+    --map-width: min(calc(100cqw - 2 * var(--splash-gutter)), 100%);
+    --map-y-offset: -1.5%;
+    --brand-y-nudge: 4cqh;
+    --map-radius: clamp(8px, 2.4cqw, 14px);
+  }
+
+  .splash-parchment-sheet {
+    width: 145%;
+    height: 140%;
+    transform: translate(-50%, -12%);
+  }
+
+  .splash-parchment-map {
+    max-width: none;
+    border-radius: var(--map-radius);
+  }
+
+  .splash-screen .logo-wordmark {
+    width: min(100%, 96cqw);
+  }
+}
+
+/* Desktop / wide: parchment fills the page; paper top at the top edge */
+@media (min-width: 641px) {
+  .splash-screen {
+    --compose-max: 430px;
+    --map-height-limit: min(88cqh, 820px);
+    --map-width: var(--compose-max);
+    --brand-y-nudge: 2.5rem;
+  }
+
+  .splash-parchment-sheet {
+    /* Wider zoom so portrait paper covers a landscape viewport */
+    width: 240%;
+    height: 190%;
+    transform: translate(-50%, -16%);
+  }
+
+  .splash-brand {
+    left: 0;
+    right: 0;
+    width: min(100% - 2 * var(--splash-gutter), var(--compose-max));
+    margin-inline: auto;
+  }
+
+  .splash-actions {
+    left: 0;
+    right: 0;
+    width: min(100% - 2 * var(--splash-gutter), 340px);
   }
 }

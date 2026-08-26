@@ -2871,14 +2871,16 @@ body.dictionary-page .dictionary-inner {
 /* Main menu landing & in-game nav */
 html:has(.landing-body) {
   height: 100%;
-  background: #362518;
+  background: #c4a06a;
 }
 
 .landing-body {
   margin: 0;
   overflow: hidden;
-  background: #362518;
+  background: #c4a06a;
   background-image: none;
+  min-height: 100dvh;
+  min-height: 100svh;
 }
 
 .parchment-shell {
@@ -2889,13 +2891,15 @@ html:has(.landing-body) {
 .landing-shell {
   display: flex;
   flex-direction: column;
-  width: min(100%, 430px);
-  max-width: 430px;
+  width: 100%;
+  max-width: none;
   height: 100dvh;
-  margin-inline: auto;
+  height: 100svh;
+  margin: 0;
   container-type: size;
-  box-shadow: 0 0 0 1px rgba(42, 26, 15, 0.06);
+  box-shadow: none;
   --landing-y-nudge: 0.65rem;
+  --landing-compose-max: 430px;
 }
 
 .parchment-shell .splash-parchment,
@@ -2906,15 +2910,45 @@ html:has(.landing-body) {
   pointer-events: none;
 }
 
+.parchment-shell .splash-parchment {
+  background: #c4a06a;
+}
+
 .parchment-shell .splash-parchment-sheet {
-  object-position: center center;
-  transform: scale(1.1);
-  transform-origin: center center;
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 145%;
+  height: 140%;
+  max-width: none;
+  transform: translate(-50%, -12%);
+  object-fit: cover;
+  object-position: center top;
+}
+
+@media (min-width: 641px) {
+  .parchment-shell .splash-parchment-sheet {
+    width: 240%;
+    height: 190%;
+    transform: translate(-50%, -16%);
+  }
+
+  .landing-shell {
+    --landing-compose-max: 430px;
+  }
 }
 
 .landing-shell > .landing-header,
 .landing-shell > .landing,
-.landing-shell > .dictionary-dialog,
+.landing-shell > .dictionary-dialog {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: var(--landing-compose-max);
+  margin-inline: auto;
+  transform: translateY(calc(-1 * var(--play-y-nudge, 0rem)));
+}
+
 .parchment-shell > .play-layout {
   position: relative;
   z-index: 1;
@@ -2981,10 +3015,13 @@ body.dictionary-page .landing-shell .splash-vignette {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  max-width: 880px;
+  max-width: var(--landing-compose-max, 430px);
   margin: 0 auto;
   width: 100%;
   padding: calc(0.65rem + var(--landing-y-nudge, 0rem)) 1.25rem 3rem;
+  padding-left: max(1.25rem, env(safe-area-inset-left, 0px));
+  padding-right: max(1.25rem, env(safe-area-inset-right, 0px));
+  padding-bottom: max(3rem, env(safe-area-inset-bottom, 0px) + 1.5rem);
 }
 
 .landing-header {

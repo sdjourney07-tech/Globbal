@@ -277,6 +277,14 @@ button {
 .rack .tile,
 .board .tile[draggable="true"] {
   touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.tile-drag-ghost {
+  touch-action: none;
+  pointer-events: none !important;
 }
 
 
@@ -286,9 +294,13 @@ button {
 }
 
 /* Landing / menu */
+.landing-shell {
+  --landing-compose-max: 100%;
+}
+
 .landing {
-  padding: calc(0.75rem + var(--landing-y-nudge, 0rem)) max(1rem, env(safe-area-inset-left, 0px)) 2rem
-    max(1rem, env(safe-area-inset-right, 0px));
+  padding: calc(0.75rem + var(--landing-y-nudge, 0rem)) max(1rem, env(safe-area-inset-left, 0px))
+    max(2rem, env(safe-area-inset-bottom, 0px) + 1rem) max(1rem, env(safe-area-inset-right, 0px));
 }
 
 .landing-header {

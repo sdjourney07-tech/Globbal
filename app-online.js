@@ -170,10 +170,25 @@ function onWsMessage(ev) {
     return;
   }
   if (msg.type === "state") {
+    const wasOffTurn = Boolean(
+      gameState &&
+        !gameState.lobby &&
+        gameState.gameStarted &&
+        !gameState.gameOver &&
+        !gameState.isMyTurn
+    );
+    const preview = snapshotOffTurnPreview();
     gameState = msg.payload;
     rememberConfirmedState(gameState);
     if (Array.isArray(gameState?.playerNames) && gameState.playerNames.length) {
       matchUsernames = gameState.playerNames.slice();
+    }
+    if (preview?.length) {
+      restoreOffTurnPreview(preview);
+      // Only publish once when the turn flips to you — not on every later state echo.
+      if (wasOffTurn && gameState.isMyTurn) {
+        syncOffTurnPreviewToServer();
+      }
     }
     renderAll();
   } else if (msg.type === "joined") {
@@ -273,11 +288,28 @@ function canInteract() {
   );
 }
 
+/** Place / move / recall / shuffle / drag — allowed while waiting (private preview). */
+function canRackBoardInteract() {
+  return (
+    gameState &&
+    !gameState.lobby &&
+    gameState.gameStarted &&
+    !gameState.gameOver
+  );
+}
+
+function isOffTurnPreview() {
+  return Boolean(canRackBoardInteract() && gameState && !gameState.isMyTurn);
+}
+
 function setControlsDisabled(disabled) {
-  submitTurnBtn.disabled = disabled;
-  recallTilesBtn.disabled = disabled;
-  passTurnBtn.disabled = disabled;
-  shuffleRackBtn.disabled = disabled;
+  const playable = canRackBoardInteract() && !gameState?.gameOver;
+  const myTurn = canInteract();
+  submitTurnBtn.disabled = disabled || !myTurn;
+  passTurnBtn.disabled = disabled || !myTurn;
+  recallTilesBtn.disabled =
+    disabled || !playable || !(gameState?.pendingPlacements || []).length;
+  shuffleRackBtn.disabled = disabled || !playable || rackShuffleAnimating;
 }
 
 function setLobbyPanelVisible(visible) {
@@ -365,7 +397,7 @@ function renderBoard() {
         cellEl.appendChild(premiumLabel);
       } else {
         const tileEl = createTileElement(cell.tile, false);
-        const unlocked = !cell.tile.locked && canInteract();
+        const unlocked = !cell.tile.locked && canRackBoardInteract();
         setTileDraggable(tileEl, unlocked);
         cellEl.appendChild(tileEl);
         if (cell.tile.locked && window.GlobblePlaceInfo) {
@@ -396,7 +428,7 @@ function renderRack() {
     const tile = rack[index] ?? null;
     if (tile) {
       const tileEl = createTileElement(tile, true);
-      const usable = canInteract();
+      const usable = canRackBoardInteract();
       setTileDraggable(tileEl, usable);
       if (index === selectedRackIndex) {
         tileEl.classList.add("selected");
@@ -473,7 +505,7 @@ async function maybeRunShuffleAnimation() {
     await window.GlobbleRackShuffle.play(rackEl, { slotSources, button: shuffleRackBtn });
   } finally {
     rackShuffleAnimating = false;
-    setControlsDisabled(!canInteract() || !!gameState?.gameOver);
+    setControlsDisabled(!!gameState?.gameOver);
   }
 }
 
@@ -562,7 +594,7 @@ function renderAll() {
   }
   renderScores();
   renderGameMessage();
-  setControlsDisabled(!canInteract() || !!gameState.gameOver);
+  setControlsDisabled(!!gameState.gameOver);
 
   const cp = gameState.currentPlayer;
   const activeName = playerScoreLabel(cp);
@@ -571,7 +603,10 @@ function renderAll() {
   } else if (gameState.isMyTurn) {
     turnInfoEl.textContent = `Your turn (${activeName})`;
   } else {
-    turnInfoEl.textContent = `Waiting — ${activeName}'s turn`;
+    const testing = (gameState.pendingPlacements || []).length > 0;
+    turnInfoEl.textContent = testing
+      ? `Waiting — ${activeName}'s turn (your test tiles are private)`
+      : `Waiting — ${activeName}'s turn`;
   }
 
   window.GlobbleBoardZoom?.syncFromTiles(gameState.pendingPlacements || [], boardEl);
@@ -615,7 +650,7 @@ function applyOptimisticRecall() {
 }
 
 async function recallOnlineTurnTiles() {
-  if (!canInteract() || rackRecallAnimating || !(gameState.pendingPlacements || []).length) {
+  if (!canRackBoardInteract() || rackRecallAnimating || !(gameState.pendingPlacements || []).length) {
     return;
   }
 
@@ -629,8 +664,15 @@ async function recallOnlineTurnTiles() {
   });
 
   const recallItems = pending.filter((item) => item.tile && item.fromRect && item.toRect);
+  const syncServer = canInteract();
   if (!recallItems.length) {
-    sendAction({ type: "recall" });
+    if (syncServer) {
+      sendAction({ type: "recall" });
+    } else if (applyOptimisticRecall()) {
+      selectedRackIndex = null;
+      window.GlobblePendingWordGlow?.resetGlowState?.();
+      renderAll();
+    }
     return;
   }
 
@@ -639,7 +681,7 @@ async function recallOnlineTurnTiles() {
 
   if (!applyOptimisticRecall()) {
     rackRecallAnimating = false;
-    recallTilesBtn.disabled = !canInteract();
+    setControlsDisabled(false);
     return;
   }
 
@@ -657,7 +699,9 @@ async function recallOnlineTurnTiles() {
     return { slotEl, slotTileEl };
   });
 
-  sendAction({ type: "recall" });
+  if (syncServer) {
+    sendAction({ type: "recall" });
+  }
 
   try {
     if (window.GlobbleRackShuffle?.playRecall) {
@@ -672,17 +716,20 @@ async function recallOnlineTurnTiles() {
       window.setTimeout(() => slotEl?.classList.remove("rack-slot-pop"), 100);
     });
     rackRecallAnimating = false;
-    setControlsDisabled(!canInteract() || !!gameState?.gameOver);
+    setControlsDisabled(false);
   }
 }
 
 function returnBoardTileToRack(row, col, preferredRackSlot = null, dropPoint = null) {
-  if (!canInteract()) {
+  if (!canRackBoardInteract()) {
     return;
   }
   const placement = (gameState.pendingPlacements || []).find(
     (entry) => entry.row === row && entry.col === col
   );
+  if (!placement) {
+    return;
+  }
   const cellEl = boardEl.querySelector(`[data-row="${row}"][data-col="${col}"]`);
   const boardTileRect = cellEl?.querySelector(".tile")?.getBoundingClientRect();
   const fromRect = window.GlobbleRackReturn?.resolveQuickFromRect?.({
@@ -691,31 +738,63 @@ function returnBoardTileToRack(row, col, preferredRackSlot = null, dropPoint = n
     dropPoint
   }) ?? boardTileRect;
   window.GlobbleRackReorder?.finishDragGhost();
-  const rackIndex =
+  const tile = gameState.board[row]?.[col]?.tile;
+  if (!tile || tile.locked) {
+    return;
+  }
+  const rack = gameState.myRack;
+  if (!rack) {
+    return;
+  }
+  let rackIndex =
     Number.isInteger(preferredRackSlot) &&
     preferredRackSlot >= 0 &&
     preferredRackSlot < RACK_SIZE &&
-    !gameState.myRack?.[preferredRackSlot]
+    !rack[preferredRackSlot]
       ? preferredRackSlot
-      : placement?.rackIndex;
+      : placement.rackIndex;
+  if (
+    !(
+      Number.isInteger(rackIndex) &&
+      rackIndex >= 0 &&
+      rackIndex < RACK_SIZE &&
+      !rack[rackIndex]
+    )
+  ) {
+    rackIndex = rack.findIndex((slot) => !slot);
+  }
+  if (rackIndex < 0) {
+    return;
+  }
+
   pendingTileReturn = {
     row,
     col,
     rackIndex,
     fromRect,
-    tile: placement ? { ...gameState.board[row][col].tile } : null
+    tile: { ...tile }
   };
-  sendAction({
-    type: "removeTile",
-    row,
-    col,
-    preferredRackSlot: Number.isInteger(preferredRackSlot) ? preferredRackSlot : undefined
-  });
+
+  gameState.board[row][col].tile = null;
+  rack[rackIndex] = tileBackToRack(tile);
+  gameState.pendingPlacements = (gameState.pendingPlacements || []).filter(
+    (entry) => !(entry.row === row && entry.col === col)
+  );
   selectedRackIndex = null;
+  renderAll();
+
+  if (canInteract()) {
+    sendAction({
+      type: "removeTile",
+      row,
+      col,
+      preferredRackSlot: Number.isInteger(preferredRackSlot) ? preferredRackSlot : undefined
+    });
+  }
 }
 
 function onCellClick(row, col) {
-  if (!canInteract()) return;
+  if (!canRackBoardInteract()) return;
   const cell = gameState.board[row][col];
   if (cell.tile && !cell.tile.locked) {
     returnBoardTileToRack(row, col);
@@ -798,6 +877,115 @@ function tileBackToRack(tile) {
   return { ...tile, locked: false };
 }
 
+function snapshotOffTurnPreview() {
+  if (!gameState || gameState.lobby) {
+    return null;
+  }
+  const pending = gameState.pendingPlacements || [];
+  if (!pending.length) {
+    return null;
+  }
+  return pending
+    .map(({ row, col, rackIndex }) => {
+      const tile = gameState.board?.[row]?.[col]?.tile;
+      if (!tile || tile.locked) {
+        return null;
+      }
+      return {
+        row,
+        col,
+        rackIndex,
+        tile: {
+          letter: tile.letter,
+          value: tile.value,
+          isBlank: !!tile.isBlank,
+          qwPlated: !!tile.qwPlated
+        }
+      };
+    })
+    .filter(Boolean);
+}
+
+function findPreviewRackIndex(rack, snapshotTile, preferredIndex) {
+  if (
+    Number.isInteger(preferredIndex) &&
+    preferredIndex >= 0 &&
+    preferredIndex < RACK_SIZE &&
+    rack[preferredIndex]
+  ) {
+    const slot = rack[preferredIndex];
+    if (snapshotTile.isBlank ? slot.isBlank : !slot.isBlank && slot.letter === snapshotTile.letter) {
+      return preferredIndex;
+    }
+  }
+  if (snapshotTile.isBlank) {
+    return rack.findIndex((tile) => tile && tile.isBlank);
+  }
+  return rack.findIndex(
+    (tile) => tile && !tile.isBlank && tile.letter === snapshotTile.letter
+  );
+}
+
+function restoreOffTurnPreview(preview) {
+  if (!preview?.length || !gameState) {
+    return;
+  }
+  const rack = gameState.myRack;
+  const board = gameState.board;
+  if (!rack || !board) {
+    return;
+  }
+  if (!Array.isArray(gameState.pendingPlacements)) {
+    gameState.pendingPlacements = [];
+  }
+  preview.forEach((item) => {
+    if (board[item.row]?.[item.col]?.tile) {
+      return;
+    }
+    const rackIndex = findPreviewRackIndex(rack, item.tile, item.rackIndex);
+    if (rackIndex < 0) {
+      return;
+    }
+    const chosen = rack[rackIndex];
+    const tile = {
+      ...chosen,
+      placedBy: gameState.myPlayerIndex,
+      locked: false
+    };
+    if (tile.isBlank) {
+      tile.letter = String(item.tile.letter || "?").toUpperCase();
+      tile.value = 0;
+    }
+    rack[rackIndex] = null;
+    board[item.row][item.col].tile = tile;
+    gameState.pendingPlacements.push({ row: item.row, col: item.col, rackIndex });
+  });
+}
+
+/** After waiting ends, publish private test placements so they become real pending tiles. */
+function syncOffTurnPreviewToServer() {
+  if (!canInteract()) {
+    return;
+  }
+  const pending = gameState?.pendingPlacements || [];
+  pending.forEach(({ row, col, rackIndex }) => {
+    const tile = gameState.board?.[row]?.[col]?.tile;
+    if (!tile || tile.locked) {
+      return;
+    }
+    const payload = {
+      type: "placeTile",
+      row,
+      col,
+      rackIndex
+    };
+    if (tile.isBlank) {
+      payload.blankLetter = String(tile.letter || "").toUpperCase();
+    }
+    sendAction(payload);
+  });
+}
+
 function applyOptimisticPlaceTile(row, col, rackIndex, blankLetter) {
   const rack = gameState?.myRack;
   const board = gameState?.board;
@@ -851,7 +1039,7 @@ function applyOptimisticMoveTile(targetRow, targetCol, sourceRow, sourceCol) {
 }
 
 async function placeOnlineRackTile(row, col, rackIndex) {
-  if (!canInteract()) {
+  if (!canRackBoardInteract()) {
     return;
   }
   const rack = gameState.myRack;
@@ -872,34 +1060,38 @@ async function placeOnlineRackTile(row, col, rackIndex) {
   }
   selectedRackIndex = null;
   renderAll();
-  sendAction({
-    type: "placeTile",
-    row,
-    col,
-    rackIndex,
-    blankLetter
-  });
+  if (canInteract()) {
+    sendAction({
+      type: "placeTile",
+      row,
+      col,
+      rackIndex,
+      blankLetter
+    });
+  }
 }
 
 function moveOnlineTurnTile(targetRow, targetCol, sourceRow, sourceCol) {
-  if (!canInteract()) {
+  if (!canRackBoardInteract()) {
     return;
   }
   if (!applyOptimisticMoveTile(targetRow, targetCol, sourceRow, sourceCol)) {
     return;
   }
   renderAll();
-  sendAction({
-    type: "moveTile",
-    targetRow,
-    targetCol,
-    sourceRow,
-    sourceCol
-  });
+  if (canInteract()) {
+    sendAction({
+      type: "moveTile",
+      targetRow,
+      targetCol,
+      sourceRow,
+      sourceCol
+    });
+  }
 }
 
 async function handlePointerTileDrop(clientX, clientY) {
-  if (!canInteract()) {
+  if (!canRackBoardInteract()) {
     return;
   }
 
@@ -976,7 +1168,7 @@ function onCellDragOver(event, row, col) {
 }
 
 function canDropOnCell(row, col) {
-  if (!canInteract()) return false;
+  if (!canRackBoardInteract()) return false;
   if (gameState.board[row][col].tile) {
     return false;
   }
@@ -991,7 +1183,7 @@ function canDropOnCell(row, col) {
 
 async function onCellDrop(event, row, col) {
   event.preventDefault();
-  if (!canInteract()) return;
+  if (!canRackBoardInteract()) return;
 
   let targetRow = row;
   let targetCol = col;
@@ -1032,7 +1224,7 @@ recallTilesBtn.addEventListener("click", () => {
 });
 passTurnBtn.addEventListener("click", () => sendAction({ type: "pass" }));
 shuffleRackBtn.addEventListener("click", () => {
-  if (!canInteract() || rackShuffleAnimating || rackEl.dataset.shuffling === "1") {
+  if (!canRackBoardInteract() || rackShuffleAnimating || rackEl.dataset.shuffling === "1") {
     return;
   }
   shufflePrevRack = (gameState.myRack || []).map((tile) => (tile ? { ...tile } : null));
@@ -1116,7 +1308,7 @@ function bindRackEvents() {
   rackEventsBound = true;
 
   rackEl.addEventListener("click", (event) => {
-    if (!canInteract()) {
+    if (!canRackBoardInteract()) {
       return;
     }
     const tileEl = event.target.closest(".rack .tile");
@@ -1184,11 +1376,11 @@ window.GlobblePendingWordGlow?.registerRenderCallback(() => {
 
 if (window.GlobbleRackReorder) {
   window.GlobbleRackReorder.bindRackReorder(rackEl, {
-    canReorder: () => canInteract() && draggingRackIndex !== null,
+    canReorder: () => canRackBoardInteract() && draggingRackIndex !== null,
     getDraggingRackIndex: () => draggingRackIndex,
     getDraggingBoardPos: () => draggingTurnTilePos,
     canReturnToRack: () =>
-      canInteract() && draggingTurnTilePos !== null,
+      canRackBoardInteract() && draggingTurnTilePos !== null,
     onReturnToRack(row, col, preferredSlot, dropPoint) {
       returnBoardTileToRack(row, col, preferredSlot, dropPoint);
       onAnyDragEnd();
@@ -1213,11 +1405,11 @@ if (window.GlobbleTilePointerDrag) {
     rackEl,
     boardEl,
     canInteract: () =>
-      canInteract() &&
+      canRackBoardInteract() &&
       !rackShuffleAnimating &&
       rackEl?.dataset.shuffling !== "1",
-    canReorder: () => canInteract() && draggingRackIndex !== null,
-    canReturnToRack: () => canInteract() && draggingTurnTilePos !== null,
+    canReorder: () => canRackBoardInteract() && draggingRackIndex !== null,
+    canReturnToRack: () => canRackBoardInteract() && draggingTurnTilePos !== null,
     getDraggingRackIndex: () => draggingRackIndex,
     getDraggingBoardPos: () => draggingTurnTilePos,
     onRackDragStart(rackIndex) {

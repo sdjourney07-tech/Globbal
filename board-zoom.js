@@ -366,6 +366,9 @@
     if (!state.wrap?.contains(target)) {
       return false;
     }
+    if (window.GlobbleTilePointerDrag?.isActive?.()) {
+      return false;
+    }
     // Prefer panning from the viewport margins / frame while zoomed.
     if (
       canSingleFingerPan() &&
@@ -485,6 +488,9 @@
   }
 
   function onMouseDown(event) {
+    if (window.GlobbleTilePointerDrag?.isActive?.()) {
+      return;
+    }
     if (
       event.button !== 0 ||
       !isBoardPanTarget(event.target, event.clientX, event.clientY) ||
@@ -527,6 +533,9 @@
   }
 
   function onTouchStart(event) {
+    if (window.GlobbleTilePointerDrag?.isActive?.()) {
+      return;
+    }
     if (event.touches.length >= 2) {
       // Always allow pinch zoom, even at 1x and even over tiles.
       event.preventDefault();

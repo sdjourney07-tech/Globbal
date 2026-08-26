@@ -211,7 +211,25 @@
   }
 
   let activeDrag = null;
-  const DRAG_TILE_SCALE = 1;
+
+  function isCoarsePointer() {
+    try {
+      return (
+        window.matchMedia("(pointer: coarse)").matches ||
+        window.matchMedia("(hover: none)").matches
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  function dragVisuals() {
+    if (isCoarsePointer()) {
+      // Lift above the finger so the tile isn't covered; scale up for visibility.
+      return { scale: 1.22, liftY: 56 };
+    }
+    return { scale: 1.06, liftY: 0 };
+  }
 
   function copyTileTypography(source, ghost) {
     const computed = getComputedStyle(source);
@@ -246,7 +264,7 @@
     });
   }
 
-  function styleDragGhost(ghost, source, rect, offsetX, offsetY) {
+  function styleDragGhost(ghost, source, rect, offsetX, offsetY, scale) {
     const computed = getComputedStyle(source);
     ghost.className = `${source.className} tile-drag-ghost`.replace(/\btile-drag-source\b/g, "").trim();
     ghost.style.position = "fixed";
@@ -259,8 +277,9 @@
     ghost.style.visibility = "visible";
     ghost.style.pointerEvents = "none";
     ghost.style.zIndex = "10000";
-    ghost.style.transformOrigin = `${offsetX}px ${offsetY}px`;
-    ghost.style.transform = `scale(${DRAG_TILE_SCALE})`;
+    ghost.style.willChange = "left, top, transform";
+    ghost.style.transformOrigin = "center center";
+    ghost.style.transform = `scale(${scale})`;
     ghost.style.display = computed.display;
     ghost.style.alignItems = computed.alignItems;
     ghost.style.justifyContent = computed.justifyContent;
@@ -294,8 +313,11 @@
     if (event.clientX === 0 && event.clientY === 0) {
       return;
     }
-    activeDrag.ghost.style.left = `${event.clientX - activeDrag.offsetX}px`;
-    activeDrag.ghost.style.top = `${event.clientY - activeDrag.offsetY}px`;
+    // Anchor ghost center to the pointer (with optional lift above a finger).
+    const halfW = activeDrag.width / 2;
+    const halfH = activeDrag.height / 2;
+    activeDrag.ghost.style.left = `${event.clientX - halfW}px`;
+    activeDrag.ghost.style.top = `${event.clientY - halfH - activeDrag.liftY}px`;
   }
 
   function onDragMove(event) {
@@ -345,8 +367,9 @@
     const rect = source.getBoundingClientRect();
     const offsetX = clientX - rect.left;
     const offsetY = clientY - rect.top;
+    const { scale, liftY } = dragVisuals();
     const ghost = source.cloneNode(true);
-    styleDragGhost(ghost, source, rect, offsetX, offsetY);
+    styleDragGhost(ghost, source, rect, offsetX, offsetY, scale);
     document.body.appendChild(ghost);
 
     requestAnimationFrame(() => {
@@ -358,7 +381,11 @@
       ghost,
       blankEl: null,
       offsetX,
-      offsetY
+      offsetY,
+      width: rect.width,
+      height: rect.height,
+      liftY,
+      scale
     };
 
     positionDragGhost({ clientX, clientY });
@@ -369,6 +396,9 @@
   }
 
   function onPointerDragMove(event) {
+    if (event.cancelable) {
+      event.preventDefault();
+    }
     positionDragGhost(event);
   }
 
@@ -378,7 +408,9 @@
     }
     finishDragGhost();
     startDragGhostFromSource(source, clientX, clientY);
-    document.addEventListener("pointermove", onPointerDragMove);
+    document.addEventListener("pointermove", onPointerDragMove, {
+      passive: false
+    });
   }
 
   function movePointerDrag(clientX, clientY) {

@@ -160,8 +160,9 @@ function createPremiumLayout(boardRows, boardCols) {
 const PREMIUM_LAYOUT = createPremiumLayout(BOARD_ROWS, BOARD_COLS);
 
 function loadDictionary() {
-  const dictPath = path.join(__dirname, "dictionary.js");
-  const aliasPath = path.join(__dirname, "dictionary-alias-sources.js");
+  // Match the main-menu "full" browse set (modern places + historical).
+  const dictPath = path.join(__dirname, "dictionary-ancient.js");
+  const aliasPath = path.join(__dirname, "dictionary-alias-sources-ancient.js");
   const src = fs.readFileSync(dictPath, "utf8");
   const LOCKED_WORDS = new Function(`${src}; return LOCKED_WORDS;`)();
   // Use precomputed alias sources instead of place-metadata.json (~88MB).
@@ -753,15 +754,23 @@ class OnlineGame {
   }
 
   shuffleRack(playerIndex) {
-    const t = this.assertTurn(playerIndex);
-    if (!t.ok) return t;
+    if (!this.gameStarted || this.gameOver) {
+      return { ok: false, error: "Game not active." };
+    }
+    if (playerIndex !== 0 && playerIndex !== 1) {
+      return { ok: false, error: "Invalid player." };
+    }
     shuffleRackSlots(this.players[playerIndex].rack);
     return { ok: true };
   }
 
   reorderRack(playerIndex, fromIndex, toIndex) {
-    const t = this.assertTurn(playerIndex);
-    if (!t.ok) return t;
+    if (!this.gameStarted || this.gameOver) {
+      return { ok: false, error: "Game not active." };
+    }
+    if (playerIndex !== 0 && playerIndex !== 1) {
+      return { ok: false, error: "Invalid player." };
+    }
     const rack = this.players[playerIndex].rack;
     ensureRackSlots(rack);
     const from = Number(fromIndex);
