@@ -3,7 +3,8 @@
   min-height: 100dvh;
   min-height: 100svh;
   overflow: hidden;
-  background: #c4a06a;
+  background: #8a6238;
+  --parchment-behind: #8a6238;
   --tile: #dfd3bc;
   --tile-engrave: #2a1810;
   --tile-border-light: #f2e9dc;
@@ -108,8 +109,8 @@
   position: absolute;
   inset: 0;
   overflow: hidden;
-  /* Paper tone fallback if the asset crops short */
-  background: #c4a06a;
+  /* Brown behind the paper (PNG has black letterboxing) */
+  background: var(--parchment-behind, #8a6238);
 }
 
 .splash-parchment::after {
@@ -142,6 +143,8 @@
   transform: translate(-50%, -50%);
   object-fit: none;
   object-position: center;
+  /* Turn the asset’s black margins into the brown backdrop */
+  mix-blend-mode: lighten;
   filter: sepia(0.84) brightness(0.83) saturate(1.46) contrast(1.05) hue-rotate(2deg);
 }
 

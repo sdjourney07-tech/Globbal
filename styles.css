@@ -2871,13 +2871,13 @@ body.dictionary-page .dictionary-inner {
 /* Main menu landing & in-game nav */
 html:has(.landing-body) {
   height: 100%;
-  background: #c4a06a;
+  background: #8a6238;
 }
 
 .landing-body {
   margin: 0;
   overflow: hidden;
-  background: #c4a06a;
+  background: #8a6238;
   background-image: none;
   min-height: 100dvh;
   min-height: 100svh;
@@ -2911,7 +2911,7 @@ html:has(.landing-body) {
 }
 
 .parchment-shell .splash-parchment {
-  background: #c4a06a;
+  background: #8a6238;
 }
 
 .parchment-shell .splash-parchment-sheet {
@@ -2925,6 +2925,7 @@ html:has(.landing-body) {
   transform: translate(-50%, -50%);
   object-fit: none;
   object-position: center;
+  mix-blend-mode: lighten;
 }
 
 @media (min-width: 641px) {
