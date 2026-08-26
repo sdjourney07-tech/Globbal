@@ -19,17 +19,37 @@
     var(--score-strip-height) + var(--mobile-action-band) + 2 * var(--rack-pad) + var(--play-gap) + 4px
   );
   --play-wordmark-height: clamp(1.2rem, 4vmin, 2rem);
-  --play-brand-band: calc(min(var(--play-ad-banner-max-width, 320px), 100vw) * 50 / 320);
-  --play-layout-stack-pad: 18px;
-  --play-ad-clearance: max(2.5rem, calc(env(safe-area-inset-top, 0px) + 12px));
-  --mobile-top-bar: 2.25rem;
-  --mobile-notch-pad: var(--play-ad-clearance);
+  /* No ad/brand band on phones — use the full screen for play */
+  --play-brand-band: 0px;
+  --play-layout-stack-pad: 6px;
+  --play-ad-clearance: 0px;
+  --mobile-top-bar: 0px;
+  --mobile-notch-pad: env(safe-area-inset-top, 0px);
+  --game-stats-tray-band: 0px;
+}
+
+.play-layout:has(.game-stats-tray) {
   --game-stats-tray-band: clamp(13px, 3.1vw, 16px);
 }
 
 .gameplay-body {
   height: 100dvh;
   overflow: hidden;
+  background: #362518;
+}
+
+/* Full-bleed play surface: no parchment gutters around the game chrome */
+.gameplay-body .play-stage.parchment-shell {
+  --play-y-nudge: 0rem;
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 0;
+  background: #362518;
+}
+
+.gameplay-body .play-stage.is-game-loaded > .splash-parchment,
+.gameplay-body .play-stage.is-game-loaded > .splash-vignette {
+  display: none;
 }
 
 .play-stage {
@@ -46,17 +66,21 @@
   gap: var(--play-gap);
   padding-left: 0;
   padding-right: 0;
+  padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: max(3px, env(safe-area-inset-bottom, 0px));
+  width: 100%;
   height: 100%;
   max-height: 100%;
   min-height: 0;
   box-sizing: border-box;
+  transform: none;
   --play-column: min(
     100vw,
     calc(
       (
         100dvh
-        - var(--mobile-notch-pad)
+        - env(safe-area-inset-top, 0px)
+        - env(safe-area-inset-bottom, 0px)
         - var(--controls-rack-band)
         - var(--rack-band)
         - var(--play-brand-band)
@@ -67,25 +91,27 @@
   );
 }
 
+.gameplay-body .parchment-shell > .play-layout {
+  transform: none;
+}
+
 .play-layout > .play-brand {
-  flex: 0 0 auto;
-  align-self: center;
-  width: var(--play-column);
-  max-width: 100%;
-  min-height: 0;
-  margin: 0;
-  padding-top: var(--play-ad-clearance);
-  padding-bottom: 2px;
+  display: none;
 }
 
 .play-layout > .play-focus {
-  margin-top: auto;
+  margin-top: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  max-width: 100%;
+  align-self: stretch;
 }
 
 .play-focus {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   min-height: 0;
-  width: var(--play-column);
+  width: 100%;
   max-width: 100%;
   height: auto;
   max-height: none;
@@ -94,7 +120,7 @@
   align-items: stretch;
   justify-content: flex-start;
   gap: var(--play-gap);
-  align-self: center;
+  align-self: stretch;
   --play-width: var(--play-column);
 }
 
@@ -111,7 +137,7 @@
 
 .controls-rack {
   flex-direction: column;
-  width: var(--play-column);
+  width: min(100%, var(--play-column));
   max-width: 100%;
   align-self: center;
   flex-shrink: 0;
@@ -141,7 +167,8 @@
 
 .play-status {
   flex-shrink: 0;
-  width: 100%;
+  width: min(100%, var(--play-column));
+  align-self: center;
   padding: 0 4px;
 }
 
@@ -189,12 +216,15 @@
 
 .board-wrap {
   display: flex;
-  flex: 0 0 auto;
-  width: 100%;
+  flex: 1 1 auto;
+  width: min(100%, var(--play-column));
+  max-width: 100%;
   aspect-ratio: 15 / 21;
   min-height: 0;
+  max-height: 100%;
   align-items: center;
   justify-content: center;
+  align-self: center;
   overflow: hidden;
   touch-action: none;
   position: relative;
@@ -230,6 +260,8 @@
 
 .play-focus > .rack-panel:not(.controls-rack) {
   margin-bottom: 2px;
+  width: min(100%, var(--play-column));
+  align-self: center;
 }
 
 .rack {
