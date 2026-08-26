@@ -72,7 +72,7 @@
   bottom: 0;
   left: 0;
   right: 0;
-  width: 100%;
+  width: min(100%, 430px);
   max-width: 430px;
   margin-inline: auto;
   container-type: size;
@@ -87,7 +87,7 @@
     max(0px, env(safe-area-inset-left, 0px));
   box-shadow: 0 0 0 1px rgba(42, 26, 15, 0.06);
   --splash-gutter: clamp(14px, 4.2cqw, 22px);
-  --map-y-offset: -2.5%;
+  --map-y-offset: 0%;
   --map-height-limit: 88cqh;
   --map-height: min(var(--map-height-limit), calc(96cqw * 1024 / 571));
   --map-top: calc(50% + var(--map-y-offset) - var(--map-height) / 2);
@@ -95,7 +95,7 @@
   --map-compass-top: 0.18;
   --brand-zone-top: var(--map-top);
   --brand-zone-height: calc(var(--map-height) * var(--map-compass-top));
-  --brand-y-nudge: 17cqh;
+  --brand-y-nudge: 12cqh;
   --map-bottom: calc(var(--map-center-y) + var(--map-height) / 2);
   --map-radius: clamp(12px, 3.6cqw, 20px);
 }
@@ -135,9 +135,9 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center top;
-  transform: scale(1.06);
-  transform-origin: center top;
+  object-position: center center;
+  transform: scale(1.08);
+  transform-origin: center center;
   filter: sepia(0.84) brightness(0.83) saturate(1.46) contrast(1.05) hue-rotate(2deg);
 }
 
@@ -296,7 +296,8 @@ body.splash-compass-active .splash-screen {
 .splash-screen .logo-wordmark {
   width: min(437px, 117cqw);
   margin-inline: auto;
-  transform: scaleY(1.2);
+  /* Optical center: wordmark glyphs sit slightly left of the SVG viewBox mid. */
+  transform: scaleY(1.2) translateX(1.25%);
   transform-origin: center center;
 }
 

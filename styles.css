@@ -2889,7 +2889,7 @@ html:has(.landing-body) {
 .landing-shell {
   display: flex;
   flex-direction: column;
-  width: 100%;
+  width: min(100%, 430px);
   max-width: 430px;
   height: 100dvh;
   margin-inline: auto;
@@ -2907,9 +2907,9 @@ html:has(.landing-body) {
 }
 
 .parchment-shell .splash-parchment-sheet {
-  object-position: center -6%;
-  transform: scale(1.1) translateY(-3%);
-  transform-origin: center top;
+  object-position: center center;
+  transform: scale(1.1);
+  transform-origin: center center;
 }
 
 .landing-shell > .landing-header,
@@ -2927,7 +2927,7 @@ html:has(.landing-body) {
 
 .play-stage.parchment-shell.is-game-loading {
   container-type: size;
-  --map-y-offset: -2.5%;
+  --map-y-offset: 0%;
   --map-height-limit: 88cqh;
   --map-height: min(var(--map-height-limit), calc(96cqw * 1024 / 571));
   --map-radius: clamp(12px, 3.6cqw, 20px);
@@ -2991,6 +2991,9 @@ body.dictionary-page .landing-shell .splash-vignette {
   flex-shrink: 0;
   z-index: 30;
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   padding-top: calc(env(safe-area-inset-top, 0px) + 0.9rem + var(--landing-y-nudge, 0rem));
   padding-bottom: 0.45rem;
   padding-left: max(1.25rem, env(safe-area-inset-left, 0px));
@@ -3130,6 +3133,9 @@ body.dictionary-page .landing-shell .splash-vignette {
 
 .landing-brand-tray .logo-wordmark {
   width: min(408px, calc(100vw - 3.5rem));
+  margin-inline: auto;
+  transform: translateX(1.25%);
+  transform-origin: center center;
 }
 
 .landing-header .logo-wordmark-wrap {
@@ -3495,6 +3501,10 @@ a.landing-card:hover {
   display: grid;
   gap: 0.65rem;
   margin-top: 0.75rem;
+}
+
+.landing-auth-form[hidden] {
+  display: none !important;
 }
 
 .landing-auth-form label {
