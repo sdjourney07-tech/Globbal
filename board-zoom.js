@@ -7,6 +7,8 @@
   const MIN_SCALE = 1;
   const MAX_SCALE = 2.4;
   const PLACEMENT_ANIM_MS = 180;
+  /** Edge ring (CSS px) of the viewport that always starts a pan while zoomed. */
+  const PAN_EDGE_GUTTER_PX = 40;
 
   const state = {
     wrap: null,
@@ -75,9 +77,9 @@
 
   function getTranslateBounds(layout, scale) {
     // Allow any point on the board to be brought to the viewport center
-    // (with a little slack), so corners/edges are fully inspectable while zoomed.
-    const slackX = layout.wrapW * 0.1;
-    const slackY = layout.wrapH * 0.1;
+    // (with slack), so corners/edges are fully inspectable while zoomed.
+    const slackX = layout.wrapW * 0.18;
+    const slackY = layout.wrapH * 0.18;
     const centerX = layout.wrapW / 2;
     const centerY = layout.wrapH / 2;
     const origin = getStageOrigin(layout);
@@ -346,9 +348,32 @@
     applyTransform(false);
   }
 
-  function isBoardPanTarget(target) {
+  function isNearWrapEdge(clientX, clientY) {
+    if (!state.wrap) {
+      return false;
+    }
+    const rect = state.wrap.getBoundingClientRect();
+    const gutter = PAN_EDGE_GUTTER_PX;
+    return (
+      clientX < rect.left + gutter ||
+      clientX > rect.right - gutter ||
+      clientY < rect.top + gutter ||
+      clientY > rect.bottom - gutter
+    );
+  }
+
+  function isBoardPanTarget(target, clientX, clientY) {
     if (!state.wrap?.contains(target)) {
       return false;
+    }
+    // Prefer panning from the viewport margins / frame while zoomed.
+    if (
+      canSingleFingerPan() &&
+      Number.isFinite(clientX) &&
+      Number.isFinite(clientY) &&
+      isNearWrapEdge(clientX, clientY)
+    ) {
+      return true;
     }
     const tile = target.closest(".tile");
     if (tile?.draggable) {
@@ -460,7 +485,11 @@
   }
 
   function onMouseDown(event) {
-    if (event.button !== 0 || !isBoardPanTarget(event.target) || !canSingleFingerPan()) {
+    if (
+      event.button !== 0 ||
+      !isBoardPanTarget(event.target, event.clientX, event.clientY) ||
+      !canSingleFingerPan()
+    ) {
       return;
     }
     event.preventDefault();
@@ -507,7 +536,7 @@
 
     if (
       event.touches.length === 1 &&
-      isBoardPanTarget(event.target) &&
+      isBoardPanTarget(event.target, event.touches[0].clientX, event.touches[0].clientY) &&
       canSingleFingerPan()
     ) {
       const touch = event.touches[0];

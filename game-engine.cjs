@@ -354,11 +354,19 @@ class OnlineGame {
   }
 
   getState(playerIndex) {
+    const isViewerTurn = this.currentPlayer === playerIndex;
     const boardOut = this.board.map((row) =>
-      row.map((cell) => ({
-        premium: cell.premium,
-        tile: cell.tile ? { ...cell.tile } : null
-      }))
+      row.map((cell) => {
+        const tile = cell.tile ? { ...cell.tile } : null;
+        // Opponent only sees submitted (locked) tiles — hide in-progress placements.
+        if (tile && !tile.locked && !isViewerTurn) {
+          return { premium: cell.premium, tile: null };
+        }
+        return {
+          premium: cell.premium,
+          tile
+        };
+      })
     );
 
     return {
@@ -366,15 +374,17 @@ class OnlineGame {
       players: this.players.map((p) => ({ name: p.name, score: p.score })),
       myRack: this.normalizeRack(this.players[playerIndex].rack),
       opponentRackCount: this.countRackTiles(this.players[1 - playerIndex].rack),
-      pendingPlacements: this.turnPlacedTiles.map(({ row, col, rackIndex }) => ({
-        row,
-        col,
-        rackIndex
-      })),
+      pendingPlacements: isViewerTurn
+        ? this.turnPlacedTiles.map(({ row, col, rackIndex }) => ({
+            row,
+            col,
+            rackIndex
+          }))
+        : [],
       bagCount: this.bag.length,
       currentPlayer: this.currentPlayer,
       myPlayerIndex: playerIndex,
-      isMyTurn: this.currentPlayer === playerIndex,
+      isMyTurn: isViewerTurn,
       message: this.lastMessage,
       gameOver: this.gameOver,
       gameStarted: this.gameStarted,
