@@ -626,7 +626,7 @@ class OnlineGame {
     }
     const validation = this.validateTurn();
     if (!validation.ok) {
-      if (validation.error.startsWith("Invalid word:")) {
+      if (validation.error.startsWith("Invalid word")) {
         this.recallTurnTiles(playerIndex);
       }
       return { ok: false, error: validation.error };
@@ -685,10 +685,14 @@ class OnlineGame {
       return { ok: false, error: "Move must form a valid word." };
     }
 
-    for (const word of words) {
-      if (!this.dictionary.has(word.text)) {
-        return { ok: false, error: `Invalid word: ${word.text}` };
-      }
+    const invalid = words
+      .map((word) => word.text)
+      .filter((text) => !this.dictionary.has(text));
+    if (invalid.length === 1) {
+      return { ok: false, error: `Invalid word: ${invalid[0]}` };
+    }
+    if (invalid.length > 1) {
+      return { ok: false, error: `Invalid words: ${invalid.join(", ")}` };
     }
 
     return { ok: true, words };

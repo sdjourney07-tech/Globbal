@@ -217,7 +217,7 @@ function onWsMessage(ev) {
       revertOptimisticState();
     }
     if (msg.error && msg.error.startsWith("Invalid word")) {
-      window.GlobbleInvalidWordToast?.show();
+      window.GlobbleInvalidWordToast?.show(msg.error);
       messageEl.textContent = "";
     } else {
       messageEl.textContent = msg.error || "Error";
@@ -538,6 +538,8 @@ function renderScores() {
   const cp = gameState.currentPlayer;
   player1ScoreEl.classList.toggle("active", cp === 0);
   player2ScoreEl.classList.toggle("active", cp === 1);
+  player1ScoreEl.setAttribute("aria-current", cp === 0 ? "true" : "false");
+  player2ScoreEl.setAttribute("aria-current", cp === 1 ? "true" : "false");
   const myIndex = gameState.myPlayerIndex;
   player1ScoreEl.classList.toggle("is-you", myIndex === 0);
   player2ScoreEl.classList.toggle("is-you", myIndex === 1);

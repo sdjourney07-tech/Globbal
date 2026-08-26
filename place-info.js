@@ -379,17 +379,29 @@
     return { text, cells };
   }
 
+  function wordIsFullyPlayed(word) {
+    return (
+      Array.isArray(word?.cells) &&
+      word.cells.length > 0 &&
+      word.cells.every((cell) => cell.tile && cell.tile.locked)
+    );
+  }
+
   function wordsForCell(board, row, col) {
     if (!board || !inBounds(board, row, col) || !board[row][col].tile) {
+      return [];
+    }
+    // Only show place stats for words that have already been submitted.
+    if (!board[row][col].tile.locked) {
       return [];
     }
     const h = getWordAt(board, row, col, 0, -1, 0, 1);
     const v = getWordAt(board, row, col, -1, 0, 1, 0);
     const out = [];
-    if (h.text.length > 1) {
+    if (h.text.length > 1 && wordIsFullyPlayed(h)) {
       out.push(h.text);
     }
-    if (v.text.length > 1 && v.text !== h.text) {
+    if (v.text.length > 1 && v.text !== h.text && wordIsFullyPlayed(v)) {
       out.push(v.text);
     }
     return out;

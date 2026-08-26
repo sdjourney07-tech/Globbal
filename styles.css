@@ -2041,10 +2041,24 @@ body.wiki-reveal-open .play-layout {
 }
 
 .score-cell.active {
-  border-color: var(--tile-border-dark);
+  border-color: #2a7a3a;
   box-shadow:
     var(--tile-shadow-selected),
-    0 0 0 2px var(--tile-highlight);
+    0 0 0 2px rgba(47, 158, 68, 0.55);
+  gap: 0.35em;
+}
+
+.score-cell.active::before {
+  content: "";
+  display: inline-block;
+  width: 0.55em;
+  height: 0.55em;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: #2f9e44;
+  box-shadow:
+    0 0 0 1px rgba(20, 80, 30, 0.4),
+    0 0 6px rgba(47, 158, 68, 0.55);
 }
 
 .rack.is-shuffle-prep:not(.rack-shuffling) .rack-slot .tile {
@@ -3651,6 +3665,36 @@ a.landing-card:hover {
   font-size: 0.82rem !important;
   font-weight: 600;
   color: rgba(42, 26, 15, 0.88) !important;
+}
+
+.games-list-turn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+}
+
+.games-list-turn.is-my-turn {
+  font-weight: 700;
+  color: rgba(30, 90, 40, 0.92) !important;
+}
+
+.games-list-turn.is-my-turn::before,
+.games-list-turn.is-their-turn::before {
+  content: "";
+  display: inline-block;
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.games-list-turn.is-my-turn::before {
+  background: #2f9e44;
+  box-shadow: 0 0 0 1px rgba(20, 80, 30, 0.35);
+}
+
+.games-list-turn.is-their-turn::before {
+  background: rgba(120, 90, 55, 0.55);
 }
 
 .games-list-actions {

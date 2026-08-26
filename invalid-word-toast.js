@@ -2,8 +2,7 @@
  * Brief centered toast for invalid dictionary submissions.
  */
 (function invalidWordToast() {
-  const MESSAGE = "Not a valid word, asshole.";
-  const SHOW_MS = 2800;
+  const SHOW_MS = 3200;
   const HIDE_MS = 420;
 
   let toastEl = null;
@@ -34,9 +33,25 @@
     }
   }
 
-  function show() {
+  function messageFromDetail(detail) {
+    if (typeof detail !== "string" || !detail.trim()) {
+      return "Not a valid word.";
+    }
+    const trimmed = detail.trim();
+    const match = trimmed.match(/^Invalid words?:\s*(.+)$/i);
+    if (match) {
+      const listed = match[1].trim();
+      if (listed.includes(",")) {
+        return `Not valid words: ${listed}`;
+      }
+      return `Not a valid word: ${listed}`;
+    }
+    return trimmed;
+  }
+
+  function show(detail) {
     const el = ensureToast();
-    el.textContent = MESSAGE;
+    el.textContent = messageFromDetail(detail);
     clearTimers();
     el.hidden = false;
     el.classList.remove("invalid-word-toast-hide");

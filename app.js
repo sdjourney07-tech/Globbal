@@ -1021,6 +1021,8 @@ function renderScores() {
   player2ScoreEl.textContent = `Player 2: ${players[1].score}`;
   player1ScoreEl.classList.toggle("active", currentPlayer === 0);
   player2ScoreEl.classList.toggle("active", currentPlayer === 1);
+  player1ScoreEl.setAttribute("aria-current", currentPlayer === 0 ? "true" : "false");
+  player2ScoreEl.setAttribute("aria-current", currentPlayer === 1 ? "true" : "false");
 }
 
 function tileBackToRack(tile) {
@@ -1439,8 +1441,8 @@ async function submitTurn() {
 
   const validation = validateTurn();
   if (!validation.ok) {
-    if (validation.error.startsWith("Invalid word:")) {
-      window.GlobbleInvalidWordToast?.show();
+    if (validation.error.startsWith("Invalid word")) {
+      window.GlobbleInvalidWordToast?.show(validation.error);
       if (submitTurnBtn) {
         submitTurnBtn.disabled = true;
       }
@@ -1566,10 +1568,12 @@ function validateTurn() {
     return { ok: false, error: "Move must form a valid word." };
   }
 
-  for (const word of words) {
-    if (!dictionary.has(word.text)) {
-      return { ok: false, error: `Invalid word: ${word.text}` };
-    }
+  const invalid = words.map((word) => word.text).filter((text) => !dictionary.has(text));
+  if (invalid.length === 1) {
+    return { ok: false, error: `Invalid word: ${invalid[0]}` };
+  }
+  if (invalid.length > 1) {
+    return { ok: false, error: `Invalid words: ${invalid.join(", ")}` };
   }
 
   return { ok: true, words };

@@ -777,6 +777,10 @@ function publicGame(game, viewerId) {
     opponentScore: scores && opponentIndex >= 0 ? scores[opponentIndex] : null,
     scores,
     isMyTurn: game.status === "active" && myIndex >= 0 && currentPlayer === myIndex,
+    turnUsername:
+      game.status === "active" && currentPlayer != null && usernames[currentPlayer]
+        ? usernames[currentPlayer]
+        : null,
     challengedByMe: String(game.challengedBy) === String(viewerId),
     createdAt: game.createdAt,
     updatedAt: game.updatedAt,

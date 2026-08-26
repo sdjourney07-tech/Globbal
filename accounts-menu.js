@@ -184,12 +184,18 @@
 
         const status = document.createElement("span");
         if (game.status === "pending") {
+          status.className = "games-list-turn";
           status.textContent = game.canAccept ? "Challenge received" : "Waiting for accept";
-        } else if (game.isMyTurn) {
-          status.textContent = "Your turn";
         } else if (game.status === "active") {
-          status.textContent = `${game.opponentUsername || "Opponent"}'s turn`;
+          status.className = game.isMyTurn
+            ? "games-list-turn is-my-turn"
+            : "games-list-turn is-their-turn";
+          const whose = game.isMyTurn
+            ? "Your turn"
+            : `${game.turnUsername || game.opponentUsername || "Opponent"}'s turn`;
+          status.textContent = whose;
         } else {
+          status.className = "games-list-turn";
           status.textContent = "In progress";
         }
         meta.appendChild(status);
