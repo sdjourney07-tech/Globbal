@@ -354,6 +354,122 @@ class OnlineGame {
     return rack.filter(Boolean).length;
   }
 
+  cloneTile(tile) {
+    if (!tile) {
+      return null;
+    }
+    return {
+      letter: tile.letter,
+      value: tile.value,
+      isBlank: !!tile.isBlank,
+      locked: !!tile.locked,
+      placedBy: typeof tile.placedBy === "number" ? tile.placedBy : undefined,
+      qwPlated: tile.qwPlated ? true : undefined
+    };
+  }
+
+  /** Full authoritative state for persistence across process restarts. */
+  exportSnapshot() {
+    const boardTiles = [];
+    for (let row = 0; row < BOARD_ROWS; row += 1) {
+      for (let col = 0; col < BOARD_COLS; col += 1) {
+        const tile = this.board[row]?.[col]?.tile;
+        if (tile) {
+          boardTiles.push({ row, col, tile: this.cloneTile(tile) });
+        }
+      }
+    }
+    return {
+      v: 1,
+      currentPlayer: this.currentPlayer,
+      gameStarted: this.gameStarted,
+      gameOver: this.gameOver,
+      lastMessage: this.lastMessage || "",
+      lastScoredWords: Array.isArray(this.lastScoredWords)
+        ? this.lastScoredWords.map((w) => ({ text: String(w.text || "") }))
+        : [],
+      bag: (this.bag || []).map((tile) => this.cloneTile(tile)),
+      players: (this.players || []).map((p) => ({
+        name: p.name,
+        score: Number(p.score) || 0,
+        rack: this.normalizeRack(p.rack).map((tile) => this.cloneTile(tile))
+      })),
+      turnPlacedTiles: (this.turnPlacedTiles || []).map(({ row, col, rackIndex, tile }) => ({
+        row,
+        col,
+        rackIndex,
+        tile: this.cloneTile(tile)
+      })),
+      boardTiles
+    };
+  }
+
+  /**
+   * Restore from exportSnapshot(). Returns false if the payload is unusable.
+   */
+  importSnapshot(snapshot) {
+    if (!snapshot || snapshot.v !== 1 || !Array.isArray(snapshot.players) || snapshot.players.length !== 2) {
+      return false;
+    }
+    if (!Array.isArray(snapshot.bag) || !Array.isArray(snapshot.boardTiles)) {
+      return false;
+    }
+
+    this.board = Array.from({ length: BOARD_ROWS }, (_, row) =>
+      Array.from({ length: BOARD_COLS }, (_, col) => ({
+        premium: PREMIUM_LAYOUT[row][col],
+        tile: null
+      }))
+    );
+
+    for (const entry of snapshot.boardTiles) {
+      const row = Number(entry?.row);
+      const col = Number(entry?.col);
+      if (!Number.isInteger(row) || !Number.isInteger(col)) {
+        continue;
+      }
+      if (row < 0 || row >= BOARD_ROWS || col < 0 || col >= BOARD_COLS) {
+        continue;
+      }
+      const tile = this.cloneTile(entry.tile);
+      if (tile) {
+        this.board[row][col].tile = tile;
+      }
+    }
+
+    this.bag = snapshot.bag.map((tile) => this.cloneTile(tile)).filter(Boolean);
+    this.players = snapshot.players.map((p, index) => ({
+      name: String(p?.name || `Player ${index + 1}`),
+      score: Number(p?.score) || 0,
+      rack: this.normalizeRack(Array.isArray(p?.rack) ? p.rack.map((t) => this.cloneTile(t)) : [])
+    }));
+    this.currentPlayer = snapshot.currentPlayer === 1 ? 1 : 0;
+    this.turnPlacedTiles = (Array.isArray(snapshot.turnPlacedTiles) ? snapshot.turnPlacedTiles : [])
+      .map((entry) => {
+        const row = Number(entry?.row);
+        const col = Number(entry?.col);
+        const rackIndex = Number(entry?.rackIndex);
+        const tile = this.cloneTile(entry?.tile);
+        if (
+          !Number.isInteger(row) ||
+          !Number.isInteger(col) ||
+          !Number.isInteger(rackIndex) ||
+          !tile
+        ) {
+          return null;
+        }
+        return { row, col, rackIndex, tile };
+      })
+      .filter(Boolean);
+    this.gameStarted = snapshot.gameStarted !== false;
+    this.gameOver = snapshot.gameOver || null;
+    this.lastMessage = String(snapshot.lastMessage || "");
+    this.lastScoredWords = Array.isArray(snapshot.lastScoredWords)
+      ? snapshot.lastScoredWords.map((w) => ({ text: String(w?.text || "") }))
+      : [];
+    return true;
+  }
+
   getState(playerIndex) {
     const isViewerTurn = this.currentPlayer === playerIndex;
     const boardOut = this.board.map((row) =>

@@ -363,6 +363,9 @@ function createFileBackend() {
       game.finishedAt = nowIso();
       game.updatedAt = nowIso();
       game.winnerUserId = winnerUserId;
+      delete game.liveSnapshot;
+      delete game.scores;
+      delete game.currentPlayer;
       writeFileData(data);
       return game;
     },
@@ -370,6 +373,20 @@ function createFileBackend() {
       const data = readFileData();
       const game = data.games.find((g) => g._id === gameId);
       if (!game) return;
+      game.updatedAt = nowIso();
+      writeFileData(data);
+    },
+    async saveLiveSnapshot(gameId, snapshot) {
+      const data = readFileData();
+      const game = data.games.find((g) => g._id === gameId);
+      if (!game || game.status !== "active") {
+        return;
+      }
+      game.liveSnapshot = snapshot;
+      game.scores = Array.isArray(snapshot?.players)
+        ? snapshot.players.map((p) => Number(p?.score) || 0)
+        : [0, 0];
+      game.currentPlayer = snapshot?.currentPlayer === 1 ? 1 : 0;
       game.updatedAt = nowIso();
       writeFileData(data);
     }
@@ -682,13 +699,35 @@ async function createMongoBackend(uri) {
             finishedAt: nowIso(),
             updatedAt: nowIso(),
             winnerUserId: winnerUserId ? oid(winnerUserId) : null
-          }
+          },
+          $unset: { liveSnapshot: "", scores: "", currentPlayer: "" }
         }
       );
       return this.getGame(gameId);
     },
     async touchGame(gameId) {
       await games.updateOne({ _id: oid(gameId) }, { $set: { updatedAt: nowIso() } });
+    },
+    async saveLiveSnapshot(gameId, snapshot) {
+      const _id = oid(gameId);
+      if (!_id || !snapshot) {
+        return;
+      }
+      const scores = Array.isArray(snapshot.players)
+        ? snapshot.players.map((p) => Number(p?.score) || 0)
+        : [0, 0];
+      const currentPlayer = snapshot.currentPlayer === 1 ? 1 : 0;
+      await games.updateOne(
+        { _id, status: "active" },
+        {
+          $set: {
+            liveSnapshot: snapshot,
+            scores,
+            currentPlayer,
+            updatedAt: nowIso()
+          }
+        }
+      );
     }
   };
 }
@@ -709,12 +748,35 @@ function publicGame(game, viewerId) {
   const playerIds = game.playerIds.map(String);
   const myIndex = playerIds.indexOf(String(viewerId));
   const opponentIndex = myIndex === 0 ? 1 : myIndex === 1 ? 0 : -1;
+  const usernames = Array.isArray(game.usernames) ? game.usernames : [];
+  let scores = null;
+  if (Array.isArray(game.scores) && game.scores.length >= 2) {
+    scores = [Number(game.scores[0]) || 0, Number(game.scores[1]) || 0];
+  } else if (Array.isArray(game.liveSnapshot?.players) && game.liveSnapshot.players.length >= 2) {
+    scores = [
+      Number(game.liveSnapshot.players[0]?.score) || 0,
+      Number(game.liveSnapshot.players[1]?.score) || 0
+    ];
+  }
+  let currentPlayer = null;
+  if (game.currentPlayer === 0 || game.currentPlayer === 1) {
+    currentPlayer = game.currentPlayer;
+  } else if (
+    game.liveSnapshot?.currentPlayer === 0 ||
+    game.liveSnapshot?.currentPlayer === 1
+  ) {
+    currentPlayer = game.liveSnapshot.currentPlayer;
+  }
   return {
     id: String(game._id),
     status: game.status,
-    usernames: game.usernames,
-    myUsername: myIndex >= 0 ? game.usernames[myIndex] : null,
-    opponentUsername: opponentIndex >= 0 ? game.usernames[opponentIndex] : null,
+    usernames,
+    myUsername: myIndex >= 0 ? usernames[myIndex] : null,
+    opponentUsername: opponentIndex >= 0 ? usernames[opponentIndex] : null,
+    myScore: scores && myIndex >= 0 ? scores[myIndex] : null,
+    opponentScore: scores && opponentIndex >= 0 ? scores[opponentIndex] : null,
+    scores,
+    isMyTurn: game.status === "active" && myIndex >= 0 && currentPlayer === myIndex,
     challengedByMe: String(game.challengedBy) === String(viewerId),
     createdAt: game.createdAt,
     updatedAt: game.updatedAt,

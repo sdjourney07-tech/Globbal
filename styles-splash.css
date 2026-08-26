@@ -134,14 +134,14 @@
 .splash-parchment-sheet {
   position: absolute;
   left: 50%;
-  top: 0;
-  /* Asset has black margins around the paper — oversize to crop them out */
-  width: 150%;
-  height: 140%;
+  top: 50%;
+  width: auto;
+  height: auto;
   max-width: none;
-  transform: translate(-50%, -11%);
-  object-fit: cover;
-  object-position: center top;
+  max-height: none;
+  transform: translate(-50%, -50%);
+  object-fit: none;
+  object-position: center;
   filter: sepia(0.84) brightness(0.83) saturate(1.46) contrast(1.05) hue-rotate(2deg);
 }
 
@@ -302,8 +302,7 @@ body.splash-compass-active .splash-screen {
 .splash-screen .logo-wordmark {
   width: min(437px, var(--compose-max), 96cqw);
   margin-inline: auto;
-  /* Optical center: wordmark glyphs sit slightly left of the SVG viewBox mid. */
-  transform: scaleY(1.2) translateX(1.25%);
+  transform: scaleY(1.2);
   transform-origin: center center;
 }
 
@@ -441,12 +440,6 @@ body.splash-compass-active .splash-screen {
     --map-radius: clamp(8px, 2.4cqw, 14px);
   }
 
-  .splash-parchment-sheet {
-    width: 145%;
-    height: 140%;
-    transform: translate(-50%, -12%);
-  }
-
   .splash-parchment-map {
     max-width: none;
     border-radius: var(--map-radius);
@@ -457,20 +450,13 @@ body.splash-compass-active .splash-screen {
   }
 }
 
-/* Desktop / wide: parchment fills the page; paper top at the top edge */
+/* Desktop / wide */
 @media (min-width: 641px) {
   .splash-screen {
     --compose-max: 430px;
     --map-height-limit: min(88cqh, 820px);
     --map-width: var(--compose-max);
     --brand-y-nudge: 2.5rem;
-  }
-
-  .splash-parchment-sheet {
-    /* Wider zoom so portrait paper covers a landscape viewport */
-    width: 240%;
-    height: 190%;
-    transform: translate(-50%, -16%);
   }
 
   .splash-brand {

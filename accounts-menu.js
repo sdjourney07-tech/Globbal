@@ -174,13 +174,24 @@
         const title = document.createElement("strong");
         title.textContent = `vs ${game.opponentUsername || "opponent"}`;
         meta.appendChild(title);
+
+        if (game.status === "active" && game.myScore != null && game.opponentScore != null) {
+          const scoreLine = document.createElement("span");
+          scoreLine.className = "games-list-score";
+          scoreLine.textContent = `${game.myScore} – ${game.opponentScore}`;
+          meta.appendChild(scoreLine);
+        }
+
         const status = document.createElement("span");
-        status.textContent =
-          game.status === "pending"
-            ? game.canAccept
-              ? "Challenge received"
-              : "Waiting for accept"
-            : "In progress";
+        if (game.status === "pending") {
+          status.textContent = game.canAccept ? "Challenge received" : "Waiting for accept";
+        } else if (game.isMyTurn) {
+          status.textContent = "Your turn";
+        } else if (game.status === "active") {
+          status.textContent = `${game.opponentUsername || "Opponent"}'s turn`;
+        } else {
+          status.textContent = "In progress";
+        }
         meta.appendChild(status);
         li.appendChild(meta);
 

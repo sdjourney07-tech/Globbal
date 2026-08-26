@@ -77,6 +77,7 @@ function sendStaticFile(req, res, file, ext) {
       if (
         liveJs === "app-online.js" ||
         liveJs === "app.js" ||
+        liveJs === "accounts-menu.js" ||
         liveJs === "tile-pointer-drag.js" ||
         liveJs === "rack-reorder.js" ||
         liveJs === "board-zoom.js" ||
@@ -133,6 +134,8 @@ let accountsHttp = null;
 
 /** @type {Map<string, ReturnType<typeof setTimeout>>} */
 const touchGameTimers = new Map();
+/** @type {Map<string, ReturnType<typeof setTimeout>>} */
+const persistSnapshotTimers = new Map();
 
 function scheduleTouchGame(gameId) {
   const existing = touchGameTimers.get(gameId);
@@ -146,6 +149,41 @@ function scheduleTouchGame(gameId) {
     });
   }, 2500);
   touchGameTimers.set(gameId, timer);
+}
+
+function persistLiveSnapshotNow(room) {
+  if (!room?.game?.gameStarted || room.status === "finished" || room.game.gameOver) {
+    return Promise.resolve();
+  }
+  const snapshot = room.game.exportSnapshot();
+  return accountsStore.saveLiveSnapshot(room.gameId, snapshot).catch((err) => {
+    process.stderr.write(`[accounts] saveLiveSnapshot: ${err.message}\n`);
+  });
+}
+
+function schedulePersistLiveSnapshot(room, _immediate = true) {
+  if (!room?.gameId) {
+    return;
+  }
+  const existing = persistSnapshotTimers.get(room.gameId);
+  if (existing) {
+    clearTimeout(existing);
+    persistSnapshotTimers.delete(room.gameId);
+  }
+  // Persist immediately so a crash loses at most the last unfinished write.
+  void persistLiveSnapshotNow(room);
+}
+
+async function flushAllLiveSnapshots() {
+  const rooms = [...liveGames.values()];
+  for (const room of rooms) {
+    const pending = persistSnapshotTimers.get(room.gameId);
+    if (pending) {
+      clearTimeout(pending);
+      persistSnapshotTimers.delete(room.gameId);
+    }
+  }
+  await Promise.allSettled(rooms.map((room) => persistLiveSnapshotNow(room)));
 }
 
 function cancelRoomCleanup(room) {
@@ -212,6 +250,7 @@ function leaveRoom(ws) {
   }
   ws.__globble = { user: meta.user || null };
   if (!room.slots[0] && !room.slots[1]) {
+    schedulePersistLiveSnapshot(room, true);
     scheduleRoomCleanup(room);
   }
 }
@@ -227,7 +266,10 @@ async function ensureLiveGame(gameDoc) {
   }
   const game = new OnlineGame(dictionary);
   if (gameDoc.status === "active") {
-    game.initGame();
+    const restored = gameDoc.liveSnapshot && game.importSnapshot(gameDoc.liveSnapshot);
+    if (!restored) {
+      game.initGame();
+    }
   }
   const usernames = Array.isArray(gameDoc.usernames)
     ? gameDoc.usernames.map((name, index) => String(name || "").trim() || `Player ${index + 1}`)
@@ -249,6 +291,9 @@ async function ensureLiveGame(gameDoc) {
     status: gameDoc.status
   };
   liveGames.set(gameId, room);
+  if (gameDoc.status === "active" && game.gameStarted && !gameDoc.liveSnapshot) {
+    schedulePersistLiveSnapshot(room, true);
+  }
   return room;
 }
 
@@ -418,14 +463,21 @@ async function handleMessage(ws, raw) {
       winnerUserId = room.playerIds[scores[0] > scores[1] ? 0 : 1];
     }
     room.status = "finished";
+    const pendingPersist = persistSnapshotTimers.get(room.gameId);
+    if (pendingPersist) {
+      clearTimeout(pendingPersist);
+      persistSnapshotTimers.delete(room.gameId);
+    }
     void accountsStore.markGameFinished(room.gameId, winnerUserId).catch((err) => {
       process.stderr.write(`[accounts] markGameFinished: ${err.message}\n`);
     });
   } else if (type === "submit" || type === "pass") {
+    schedulePersistLiveSnapshot(room, true);
     void accountsStore.touchGame(room.gameId).catch((err) => {
       process.stderr.write(`[accounts] touchGame: ${err.message}\n`);
     });
   } else {
+    schedulePersistLiveSnapshot(room, false);
     scheduleTouchGame(room.gameId);
   }
 }
@@ -524,6 +576,31 @@ async function start() {
   server.on("error", (err) => {
     process.stderr.write(`${err.message}\n`);
     process.exit(1);
+  });
+
+  let shuttingDown = false;
+  async function gracefulShutdown(signal) {
+    if (shuttingDown) {
+      return;
+    }
+    shuttingDown = true;
+    process.stdout.write(`[shutdown] ${signal}: saving live games…\n`);
+    try {
+      await flushAllLiveSnapshots();
+    } catch (err) {
+      process.stderr.write(`[shutdown] flush failed: ${err.message}\n`);
+    }
+    server.close(() => {
+      process.exit(0);
+    });
+    setTimeout(() => process.exit(0), 8000).unref();
+  }
+
+  process.on("SIGTERM", () => {
+    void gracefulShutdown("SIGTERM");
+  });
+  process.on("SIGINT", () => {
+    void gracefulShutdown("SIGINT");
   });
 }
 

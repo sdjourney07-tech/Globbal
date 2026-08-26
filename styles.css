@@ -2917,22 +2917,17 @@ html:has(.landing-body) {
 .parchment-shell .splash-parchment-sheet {
   position: absolute;
   left: 50%;
-  top: 0;
-  width: 145%;
-  height: 140%;
+  top: 50%;
+  width: auto;
+  height: auto;
   max-width: none;
-  transform: translate(-50%, -12%);
-  object-fit: cover;
-  object-position: center top;
+  max-height: none;
+  transform: translate(-50%, -50%);
+  object-fit: none;
+  object-position: center;
 }
 
 @media (min-width: 641px) {
-  .parchment-shell .splash-parchment-sheet {
-    width: 240%;
-    height: 190%;
-    transform: translate(-50%, -16%);
-  }
-
   .landing-shell {
     --landing-compose-max: 430px;
   }
@@ -3171,8 +3166,7 @@ body.dictionary-page .landing-shell .splash-vignette {
 .landing-brand-tray .logo-wordmark {
   width: min(408px, calc(100vw - 3.5rem));
   margin-inline: auto;
-  transform: translateX(1.25%);
-  transform-origin: center center;
+  transform: none;
 }
 
 .landing-header .logo-wordmark-wrap {
@@ -3650,6 +3644,12 @@ a.landing-card:hover {
 .games-waiting {
   font-size: 0.75rem;
   color: rgba(42, 26, 15, 0.72);
+}
+
+.games-list-score {
+  font-size: 0.82rem !important;
+  font-weight: 600;
+  color: rgba(42, 26, 15, 0.88) !important;
 }
 
 .games-list-actions {
