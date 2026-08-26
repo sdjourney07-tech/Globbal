@@ -478,20 +478,21 @@ async function maybeRunShuffleAnimation() {
 }
 
 function playerScoreLabel(playerIndex) {
-  const players = gameState?.players || [];
-  const accountNames =
-    matchUsernames.length > 0
-      ? matchUsernames
-      : gameState?.playerNames || loadPersistSession()?.usernames || [];
   const defaultName = `Player ${playerIndex + 1}`;
-  const stateName = players[playerIndex]?.name;
-  if (stateName && stateName !== defaultName) {
-    return stateName;
+  const sessionNames = loadPersistSession()?.usernames || [];
+  const candidates = [
+    matchUsernames[playerIndex],
+    gameState?.playerNames?.[playerIndex],
+    sessionNames[playerIndex],
+    gameState?.players?.[playerIndex]?.name
+  ];
+  for (const candidate of candidates) {
+    const label = String(candidate || "").trim();
+    if (label && label !== defaultName) {
+      return label;
+    }
   }
-  if (accountNames[playerIndex]) {
-    return accountNames[playerIndex];
-  }
-  return stateName || defaultName;
+  return defaultName;
 }
 
 function renderScores() {
@@ -505,6 +506,9 @@ function renderScores() {
   const cp = gameState.currentPlayer;
   player1ScoreEl.classList.toggle("active", cp === 0);
   player2ScoreEl.classList.toggle("active", cp === 1);
+  const myIndex = gameState.myPlayerIndex;
+  player1ScoreEl.classList.toggle("is-you", myIndex === 0);
+  player2ScoreEl.classList.toggle("is-you", myIndex === 1);
 }
 
 function renderGameMessage() {
@@ -560,9 +564,8 @@ function renderAll() {
   renderGameMessage();
   setControlsDisabled(!canInteract() || !!gameState.gameOver);
 
-  const names = gameState.players || [];
   const cp = gameState.currentPlayer;
-  const activeName = names[cp] ? names[cp].name : `Player ${cp + 1}`;
+  const activeName = playerScoreLabel(cp);
   if (gameState.gameOver) {
     turnInfoEl.textContent = gameState.gameOver;
   } else if (gameState.isMyTurn) {

@@ -164,13 +164,25 @@ function scheduleRoomCleanup(room) {
   }, ROOM_IDLE_MS);
 }
 
+function applyRoomPlayerNames(room) {
+  const names = Array.isArray(room?.usernames) ? room.usernames : [];
+  names.forEach((name, index) => {
+    const label = String(name || "").trim();
+    if (label && room.game?.players?.[index]) {
+      room.game.players[index].name = label;
+    }
+  });
+  return names.map((name, index) => String(name || "").trim() || `Player ${index + 1}`);
+}
+
 function broadcastRoom(room) {
+  const playerNames = applyRoomPlayerNames(room);
   for (let i = 0; i < 2; i += 1) {
     const sock = room.slots[i];
     if (sock && sock.readyState === WebSocket.OPEN) {
       const payload = room.game.getState(i);
       payload.gameId = room.gameId;
-      payload.playerNames = room.usernames;
+      payload.playerNames = playerNames;
       sock.send(JSON.stringify({ type: "state", payload }));
     }
   }
@@ -212,20 +224,21 @@ async function ensureLiveGame(gameDoc) {
   const game = new OnlineGame(dictionary);
   if (gameDoc.status === "active") {
     game.initGame();
-    if (Array.isArray(gameDoc.usernames)) {
-      gameDoc.usernames.forEach((name, index) => {
-        if (game.players[index]) {
-          game.players[index].name = name;
-        }
-      });
-    }
   }
+  const usernames = Array.isArray(gameDoc.usernames)
+    ? gameDoc.usernames.map((name, index) => String(name || "").trim() || `Player ${index + 1}`)
+    : ["Player 1", "Player 2"];
+  usernames.forEach((name, index) => {
+    if (game.players[index]) {
+      game.players[index].name = name;
+    }
+  });
   room = {
     gameId,
     game,
     slots: [null, null],
     playerIds: gameDoc.playerIds.map(String),
-    usernames: gameDoc.usernames.slice(),
+    usernames,
     seatTokens: gameDoc.seatTokens ? gameDoc.seatTokens.slice() : [null, null],
     idleTimer: null,
     createdAt: Date.parse(gameDoc.createdAt) || Date.now(),

@@ -304,7 +304,7 @@ async function createMongoBackend(uri) {
     if (!doc) return null;
     return {
       _id: String(doc._id),
-      username: doc.username,
+      username: doc.username || doc.usernameKey,
       createdAt: doc.createdAt
     };
   }

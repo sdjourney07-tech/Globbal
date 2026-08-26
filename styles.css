@@ -2005,7 +2005,7 @@ body.wiki-reveal-open .play-layout {
   padding: 1px 6px;
   text-align: center;
   font-weight: 700;
-  font-size: clamp(0.62rem, calc(var(--play-width) / 34), 0.78rem);
+  font-size: clamp(0.58rem, calc(var(--play-width) / 28), 0.8rem);
   line-height: 1.1;
   overflow: hidden;
   text-overflow: ellipsis;
