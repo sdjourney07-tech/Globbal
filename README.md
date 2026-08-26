@@ -10,7 +10,8 @@ cp .env.example .env   # then add your MongoDB URI
 npm run start:local
 ```
 
-Open [http://127.0.0.1:8080/](http://127.0.0.1:8080/) for the mobile preview.
+Open [http://127.0.0.1:8080/](http://127.0.0.1:8080/) for the app (splash / main menu).
+Optional phone-frame preview: [http://127.0.0.1:8080/mobile-preview.html](http://127.0.0.1:8080/mobile-preview.html).
 
 ## Multiplayer
 

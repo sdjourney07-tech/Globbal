@@ -38,7 +38,7 @@ http
         return;
       }
       if (urlPath === "/") {
-        urlPath = "/mobile-preview.html";
+        urlPath = "/splash.html";
       }
       const file = safeJoin(ROOT, urlPath.replace(/^\//, "").replace(/\\/g, "/"));
       if (!file) {
