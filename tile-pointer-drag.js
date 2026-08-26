@@ -196,16 +196,16 @@
   }
 
   function onNativeDragStart(event) {
-    // Pointer drag handles tiles on all devices; suppress HTML5 drag so they do not fight.
-    if (getDraggableTile(event.target)) {
+    // Pointer drag owns tiles on every device. Cancel HTML5 drag completely so
+    // app dragstart/dragend handlers do not clear pointer-drag mid-gesture.
+    if (getDraggableTile(event.target) || pointerDragging || pending) {
       event.preventDefault();
-      return;
+      event.stopImmediatePropagation();
     }
-    if (pointerDragging) {
-      event.preventDefault();
-      return;
-    }
-    pending = null;
+  }
+
+  function isActive() {
+    return Boolean(pending) || pointerDragging;
   }
 
   function onRackClickCapture(event) {
@@ -227,5 +227,5 @@
     opts.boardEl?.addEventListener("dragstart", onNativeDragStart, true);
   }
 
-  window.GlobbleTilePointerDrag = { init };
+  window.GlobbleTilePointerDrag = { init, isActive };
 })();

@@ -92,19 +92,6 @@
           inset 0 1px 0 rgba(255, 255, 255, 0.08);
       }
 
-      .phone-notch {
-        position: absolute;
-        top: calc(var(--bezel) + 6px);
-        left: 50%;
-        transform: translateX(-50%);
-        width: 96px;
-        height: 22px;
-        border-radius: 999px;
-        background: #0a0a0a;
-        z-index: 2;
-        pointer-events: none;
-      }
-
       .phone-screen {
         width: var(--phone-w, 390px);
         height: var(--phone-h, 844px);
@@ -157,7 +144,6 @@
     </div>
 
     <div class="phone-shell" id="phoneShell">
-      <div class="phone-notch" id="phoneNotch" aria-hidden="true"></div>
       <div class="phone-screen" id="phoneScreen">
         <iframe id="gameFrame" title="Globbal mobile preview" src="./splash.html"></iframe>
       </div>
@@ -174,7 +160,6 @@
       const reloadBtn = document.getElementById("reloadBtn");
       const gameFrame = document.getElementById("gameFrame");
       const phoneScreen = document.getElementById("phoneScreen");
-      const phoneNotch = document.getElementById("phoneNotch");
       const sizeLabel = document.getElementById("sizeLabel");
 
       let landscape = false;
@@ -183,7 +168,6 @@
         const size = landscape ? LANDSCAPE : PORTRAIT;
         phoneScreen.style.setProperty("--phone-w", `${size.w}px`);
         phoneScreen.style.setProperty("--phone-h", `${size.h}px`);
-        phoneNotch.hidden = landscape;
         rotateBtn.setAttribute("aria-pressed", String(landscape));
         rotateBtn.textContent = landscape ? "Rotate (portrait)" : "Rotate (landscape)";
         sizeLabel.innerHTML = `Viewport: <code>${size.w} × ${size.h}</code> ${landscape ? "landscape" : "portrait"}`;

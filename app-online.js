@@ -748,6 +748,10 @@ function onTurnTileDragStart(event, row, col) {
 }
 
 function onAnyDragEnd() {
+  // HTML5 dragend can fire when we cancel native drag for pointer-drag; ignore it.
+  if (window.GlobbleTilePointerDrag?.isActive?.()) {
+    return;
+  }
   if (window.GlobbleRackReorder) {
     window.GlobbleRackReorder.finishDragGhost();
   }
