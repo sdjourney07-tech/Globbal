@@ -10,11 +10,18 @@
   const accountStatusEl = document.getElementById("accountStatus");
   const authPanel = document.getElementById("authPanel");
   const authForm = document.getElementById("authForm");
+  const forgotForm = document.getElementById("forgotForm");
   const authUsername = document.getElementById("authUsername");
+  const authEmail = document.getElementById("authEmail");
   const authPassword = document.getElementById("authPassword");
   const authError = document.getElementById("authError");
   const loginBtn = document.getElementById("loginBtn");
   const registerBtn = document.getElementById("registerBtn");
+  const forgotPasswordBtn = document.getElementById("forgotPasswordBtn");
+  const forgotLogin = document.getElementById("forgotLogin");
+  const forgotSubmitBtn = document.getElementById("forgotSubmitBtn");
+  const forgotBackBtn = document.getElementById("forgotBackBtn");
+  const forgotError = document.getElementById("forgotError");
   const logoutBtn = document.getElementById("logoutBtn");
   const playPanel = document.getElementById("playPanel");
   const searchInput = document.getElementById("playerSearchInput");
@@ -30,8 +37,22 @@
     if (authError) authError.textContent = message || "";
   }
 
+  function setForgotError(message) {
+    if (forgotError) forgotError.textContent = message || "";
+  }
+
   function setSearchError(message) {
     if (searchError) searchError.textContent = message || "";
+  }
+
+  function showForgot(show) {
+    if (authForm) authForm.hidden = !!show;
+    if (forgotForm) forgotForm.hidden = !show;
+    setForgotError("");
+    setAuthError("");
+    if (show && forgotLogin && authUsername?.value) {
+      forgotLogin.value = authUsername.value.trim();
+    }
   }
 
   function renderAuthState(user) {
@@ -44,6 +65,7 @@
     if (logoutBtn) logoutBtn.hidden = !signedIn;
     if (guestPracticeGrid) guestPracticeGrid.hidden = signedIn;
     if (signedIn) {
+      showForgot(false);
       refreshGames();
     } else if (gamesList) {
       gamesList.replaceChildren();
@@ -53,31 +75,48 @@
 
   async function doAuth(mode) {
     setAuthError("");
-    const username = (authUsername?.value || "").trim();
+    const login = (authUsername?.value || "").trim();
     const password = authPassword?.value || "";
-    if (!username || !password) {
-      setAuthError("Enter both username and password.");
+    const email = (authEmail?.value || "").trim();
+    if (!login || !password) {
+      setAuthError(
+        mode === "register"
+          ? "Enter a username and password."
+          : "Enter username or email, and password."
+      );
+      return;
+    }
+    if (mode === "register" && login.includes("@")) {
+      setAuthError("Choose a username for your account (email goes in the email field).");
       return;
     }
     if (loginBtn) loginBtn.disabled = true;
     if (registerBtn) registerBtn.disabled = true;
     try {
-      const data = await accounts.api(mode === "register" ? "/api/auth/register" : "/api/auth/login", {
-        method: "POST",
-        body: JSON.stringify({ username, password })
-      });
+      const body =
+        mode === "register"
+          ? { username: login, password, email: email || undefined }
+          : { login, password };
+      const data = await accounts.api(
+        mode === "register" ? "/api/auth/register" : "/api/auth/login",
+        {
+          method: "POST",
+          body: JSON.stringify(body)
+        }
+      );
       accounts.setSession(data.token, data.user);
       if (authPassword) authPassword.value = "";
+      if (authEmail) authEmail.value = "";
       renderAuthState(data.user);
     } catch (err) {
       let message = err.message || "Could not sign in.";
       if (err.status === 401 && /no account/i.test(message)) {
         message =
-          "No account with that username. Use Create account, or check you are on the same site where you registered.";
+          "No account found. Use Create account, or check you are on the same site where you registered.";
       } else if (err.status === 401 && /password/i.test(message)) {
         message = "Incorrect password. Passwords are case-sensitive.";
       } else if (err.status === 409) {
-        message = err.message || "Username already taken. Try Sign in instead.";
+        message = err.message || "That username or email is already taken.";
       } else if (!err.status) {
         message = "Could not reach the server. Check your connection and try again.";
       }
@@ -85,6 +124,27 @@
     } finally {
       if (loginBtn) loginBtn.disabled = false;
       if (registerBtn) registerBtn.disabled = false;
+    }
+  }
+
+  async function doForgot() {
+    setForgotError("");
+    const login = (forgotLogin?.value || "").trim();
+    if (!login) {
+      setForgotError("Enter your username or email.");
+      return;
+    }
+    if (forgotSubmitBtn) forgotSubmitBtn.disabled = true;
+    try {
+      const data = await accounts.api("/api/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify({ login })
+      });
+      setForgotError(data.message || "If that account has an email, we sent a reset link.");
+    } catch (err) {
+      setForgotError(err.message || "Could not send reset email.");
+    } finally {
+      if (forgotSubmitBtn) forgotSubmitBtn.disabled = false;
     }
   }
 
@@ -249,6 +309,12 @@
   authForm?.addEventListener("submit", (event) => {
     event.preventDefault();
     doAuth("login");
+  });
+  forgotPasswordBtn?.addEventListener("click", () => showForgot(true));
+  forgotBackBtn?.addEventListener("click", () => showForgot(false));
+  forgotForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    doForgot();
   });
   logoutBtn?.addEventListener("click", async () => {
     try {

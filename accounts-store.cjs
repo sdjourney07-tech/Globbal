@@ -15,6 +15,7 @@ const scrypt = promisify(crypto.scrypt);
 const DATA_DIR = path.join(__dirname, "data");
 const FILE_STORE = path.join(DATA_DIR, "accounts-store.json");
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const RESET_TTL_MS = 60 * 60 * 1000;
 
 function nowIso() {
   return new Date().toISOString();
@@ -30,12 +31,41 @@ function isValidUsername(username) {
   return /^[a-z0-9_]{3,20}$/.test(normalizeUsername(username));
 }
 
+function normalizeEmail(email) {
+  return String(email || "")
+    .trim()
+    .toLowerCase();
+}
+
+function isValidEmail(email) {
+  const value = normalizeEmail(email);
+  // Practical check — not full RFC compliance.
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= 254;
+}
+
+function looksLikeEmail(value) {
+  return String(value || "").includes("@");
+}
+
 function randomToken() {
   return crypto.randomBytes(32).toString("hex");
 }
 
 function hashToken(token) {
   return crypto.createHash("sha256").update(String(token)).digest("hex");
+}
+
+function normalizeOptionalEmail(email) {
+  const value = normalizeEmail(email);
+  if (!value) {
+    return "";
+  }
+  if (!isValidEmail(value)) {
+    const err = new Error("Enter a valid email address.");
+    err.code = "BAD_EMAIL";
+    throw err;
+  }
+  return value;
 }
 
 async function hashPassword(password) {
@@ -99,18 +129,26 @@ function writeFileData(data) {
 function createFileBackend() {
   return {
     mode: "file",
-    async createUser({ username, password }) {
+    async createUser({ username, password, email }) {
       const data = readFileData();
       const key = normalizeUsername(username);
+      const emailKey = normalizeOptionalEmail(email);
       if (data.users.some((u) => u.usernameKey === key)) {
         const err = new Error("Username already taken.");
         err.code = "USERNAME_TAKEN";
+        throw err;
+      }
+      if (emailKey && data.users.some((u) => u.emailKey === emailKey)) {
+        const err = new Error("That email is already linked to an account.");
+        err.code = "EMAIL_TAKEN";
         throw err;
       }
       const user = {
         _id: newId("usr"),
         username: key,
         usernameKey: key,
+        email: emailKey || null,
+        emailKey: emailKey || null,
         passwordHash: await hashPassword(password),
         createdAt: nowIso()
       };
@@ -123,9 +161,58 @@ function createFileBackend() {
       const key = normalizeUsername(username);
       return data.users.find((u) => u.usernameKey === key) || null;
     },
+    async findUserByEmail(email) {
+      const data = readFileData();
+      const key = normalizeEmail(email);
+      if (!key) return null;
+      return data.users.find((u) => u.emailKey === key) || null;
+    },
+    async findUserByLogin(identifier) {
+      const raw = String(identifier || "").trim();
+      if (!raw) return null;
+      if (looksLikeEmail(raw)) {
+        return this.findUserByEmail(raw);
+      }
+      return this.findUserByUsername(raw);
+    },
     async findUserById(id) {
       const data = readFileData();
       return data.users.find((u) => u._id === id) || null;
+    },
+    async createPasswordReset(userId) {
+      const data = readFileData();
+      const user = data.users.find((u) => u._id === userId);
+      if (!user || !user.emailKey) {
+        return null;
+      }
+      const token = randomToken();
+      user.resetTokenHash = hashToken(token);
+      user.resetExpiresAt = new Date(Date.now() + RESET_TTL_MS).toISOString();
+      writeFileData(data);
+      return { token, email: user.emailKey, username: user.username || user.usernameKey };
+    },
+    async resetPasswordWithToken(token, newPassword) {
+      const data = readFileData();
+      const tokenHash = hashToken(token);
+      const user = data.users.find((u) => u.resetTokenHash === tokenHash);
+      if (!user) {
+        const err = new Error("This reset link is invalid or has expired.");
+        err.code = "BAD_RESET";
+        throw err;
+      }
+      if (!user.resetExpiresAt || Date.parse(user.resetExpiresAt) < Date.now()) {
+        delete user.resetTokenHash;
+        delete user.resetExpiresAt;
+        writeFileData(data);
+        const err = new Error("This reset link is invalid or has expired.");
+        err.code = "BAD_RESET";
+        throw err;
+      }
+      user.passwordHash = await hashPassword(newPassword);
+      delete user.resetTokenHash;
+      delete user.resetExpiresAt;
+      writeFileData(data);
+      return publicUser(user);
     },
     async searchUsers(query, { excludeUserId, limit = 12 } = {}) {
       const data = readFileData();
@@ -317,6 +404,10 @@ async function createMongoBackend(uri) {
   const sessions = db.collection("sessions");
   const games = db.collection("games");
   await users.createIndex({ usernameKey: 1 }, { unique: true });
+  await users.createIndex(
+    { emailKey: 1 },
+    { unique: true, partialFilterExpression: { emailKey: { $type: "string" } } }
+  );
   await sessions.createIndex({ tokenHash: 1 }, { unique: true });
   await sessions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
   await games.createIndex({ playerIds: 1, status: 1 });
@@ -330,30 +421,41 @@ async function createMongoBackend(uri) {
   }
 
   function toPublic(doc) {
-    if (!doc) return null;
-    return {
-      _id: String(doc._id),
-      username: doc.username || doc.usernameKey,
-      createdAt: doc.createdAt
-    };
+    return publicUser(doc);
+  }
+
+  function duplicateKeyCode(err) {
+    if (!err || err.code !== 11000) return null;
+    const key = String(err.keyPattern ? Object.keys(err.keyPattern)[0] : "");
+    if (key === "emailKey") return "EMAIL_TAKEN";
+    return "USERNAME_TAKEN";
   }
 
   return {
     mode: "mongo",
     client,
-    async createUser({ username, password }) {
+    async createUser({ username, password, email }) {
       const key = normalizeUsername(username);
+      const emailKey = normalizeOptionalEmail(email);
       try {
         const doc = {
           username: key,
           usernameKey: key,
+          email: emailKey || null,
+          emailKey: emailKey || null,
           passwordHash: await hashPassword(password),
           createdAt: nowIso()
         };
         const result = await users.insertOne(doc);
         return toPublic({ ...doc, _id: result.insertedId });
       } catch (err) {
-        if (err && err.code === 11000) {
+        const code = duplicateKeyCode(err);
+        if (code === "EMAIL_TAKEN") {
+          const e = new Error("That email is already linked to an account.");
+          e.code = "EMAIL_TAKEN";
+          throw e;
+        }
+        if (code === "USERNAME_TAKEN") {
           const e = new Error("Username already taken.");
           e.code = "USERNAME_TAKEN";
           throw e;
@@ -364,10 +466,76 @@ async function createMongoBackend(uri) {
     async findUserByUsername(username) {
       return users.findOne({ usernameKey: normalizeUsername(username) });
     },
+    async findUserByEmail(email) {
+      const key = normalizeEmail(email);
+      if (!key) return null;
+      return users.findOne({ emailKey: key });
+    },
+    async findUserByLogin(identifier) {
+      const raw = String(identifier || "").trim();
+      if (!raw) return null;
+      if (looksLikeEmail(raw)) {
+        return this.findUserByEmail(raw);
+      }
+      return this.findUserByUsername(raw);
+    },
     async findUserById(id) {
       const _id = oid(id);
       if (!_id) return null;
       return users.findOne({ _id });
+    },
+    async createPasswordReset(userId) {
+      const _id = oid(userId);
+      if (!_id) return null;
+      const user = await users.findOne({ _id });
+      if (!user || !user.emailKey) {
+        return null;
+      }
+      const token = randomToken();
+      await users.updateOne(
+        { _id },
+        {
+          $set: {
+            resetTokenHash: hashToken(token),
+            resetExpiresAt: new Date(Date.now() + RESET_TTL_MS)
+          }
+        }
+      );
+      return {
+        token,
+        email: user.emailKey,
+        username: user.username || user.usernameKey
+      };
+    },
+    async resetPasswordWithToken(token, newPassword) {
+      const tokenHash = hashToken(token);
+      const user = await users.findOne({ resetTokenHash: tokenHash });
+      if (!user) {
+        const err = new Error("This reset link is invalid or has expired.");
+        err.code = "BAD_RESET";
+        throw err;
+      }
+      const expires =
+        user.resetExpiresAt instanceof Date
+          ? user.resetExpiresAt.getTime()
+          : Date.parse(user.resetExpiresAt || 0);
+      if (!expires || expires < Date.now()) {
+        await users.updateOne(
+          { _id: user._id },
+          { $unset: { resetTokenHash: "", resetExpiresAt: "" } }
+        );
+        const err = new Error("This reset link is invalid or has expired.");
+        err.code = "BAD_RESET";
+        throw err;
+      }
+      await users.updateOne(
+        { _id: user._id },
+        {
+          $set: { passwordHash: await hashPassword(newPassword) },
+          $unset: { resetTokenHash: "", resetExpiresAt: "" }
+        }
+      );
+      return publicUser(user);
     },
     async searchUsers(query, { excludeUserId, limit = 12 } = {}) {
       const q = normalizeUsername(query);
@@ -527,9 +695,11 @@ async function createMongoBackend(uri) {
 
 function publicUser(user) {
   if (!user) return null;
+  const email = user.emailKey || user.email || null;
   return {
     _id: String(user._id),
     username: user.username || user.usernameKey,
+    hasEmail: Boolean(email),
     createdAt: user.createdAt || null
   };
 }
@@ -574,6 +744,9 @@ async function createAccountsStore() {
       ...backend,
       isValidUsername,
       normalizeUsername,
+      isValidEmail,
+      normalizeEmail,
+      looksLikeEmail,
       verifyPassword,
       publicUser,
       publicGame: (game, viewerId) => publicGame(game, viewerId)
@@ -592,6 +765,9 @@ async function createAccountsStore() {
     ...backend,
     isValidUsername,
     normalizeUsername,
+    isValidEmail,
+    normalizeEmail,
+    looksLikeEmail,
     verifyPassword,
     publicUser,
     publicGame: (game, viewerId) => publicGame(game, viewerId)
@@ -602,6 +778,8 @@ module.exports = {
   createAccountsStore,
   isValidUsername,
   normalizeUsername,
+  isValidEmail,
+  normalizeEmail,
   verifyPassword,
   publicUser
 };

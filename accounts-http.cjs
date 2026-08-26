@@ -1,5 +1,7 @@
 "use strict";
 
+const { sendPasswordResetEmail, appPublicBaseUrl } = require("./mailer.cjs");
+
 function readJsonBody(req, limit = 1e6) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -63,6 +65,7 @@ function createAccountsHttp(store) {
         const body = await readJsonBody(req);
         const username = store.normalizeUsername(body.username);
         const password = String(body.password || "");
+        const email = String(body.email || "").trim();
         if (!store.isValidUsername(username)) {
           sendJson(res, 400, {
             error: "Username must be 3–20 characters: letters, numbers, underscore."
@@ -73,20 +76,38 @@ function createAccountsHttp(store) {
           sendJson(res, 400, { error: "Password must be at least 6 characters." });
           return true;
         }
-        const user = await store.createUser({ username, password });
-        const token = await store.createSession(user._id);
-        sendJson(res, 201, { user, token });
+        if (email && !store.isValidEmail(email)) {
+          sendJson(res, 400, { error: "Enter a valid email address." });
+          return true;
+        }
+        try {
+          const user = await store.createUser({ username, password, email });
+          const token = await store.createSession(user._id);
+          sendJson(res, 201, { user, token });
+        } catch (err) {
+          if (err.code === "BAD_EMAIL") {
+            sendJson(res, 400, { error: err.message });
+            return true;
+          }
+          throw err;
+        }
         return true;
       }
 
       if (urlPath === "/api/auth/login" && req.method === "POST") {
         const body = await readJsonBody(req);
-        const username = store.normalizeUsername(body.username);
+        const identifier = String(body.login || body.username || body.email || "").trim();
         const password = String(body.password || "");
-        const row = await store.findUserByUsername(username);
+        if (!identifier || !password) {
+          sendJson(res, 400, { error: "Enter username or email, and password." });
+          return true;
+        }
+        const row = await store.findUserByLogin(identifier);
         if (!row) {
           sendJson(res, 401, {
-            error: "No account with that username. Create an account first (MongoDB stores accounts now)."
+            error: store.looksLikeEmail(identifier)
+              ? "No account with that email. Create an account first."
+              : "No account with that username. Create an account first."
           });
           return true;
         }
@@ -97,6 +118,71 @@ function createAccountsHttp(store) {
         const user = store.publicUser(row);
         const token = await store.createSession(user._id);
         sendJson(res, 200, { user, token });
+        return true;
+      }
+
+      if (urlPath === "/api/auth/forgot-password" && req.method === "POST") {
+        const body = await readJsonBody(req);
+        const identifier = String(body.login || body.email || body.username || "").trim();
+        const generic = {
+          ok: true,
+          message:
+            "If that account has an email on file, we sent a reset link. Check your inbox (and spam)."
+        };
+        if (!identifier) {
+          sendJson(res, 400, { error: "Enter your username or email." });
+          return true;
+        }
+        const row = await store.findUserByLogin(identifier);
+        if (row && (row.emailKey || row.email)) {
+          const reset = await store.createPasswordReset(String(row._id));
+          if (reset) {
+            const resetUrl = `${appPublicBaseUrl(req)}/reset-password.html?token=${encodeURIComponent(reset.token)}`;
+            try {
+              await sendPasswordResetEmail({
+                to: reset.email,
+                resetUrl,
+                username: reset.username
+              });
+            } catch (err) {
+              if (err.code === "EMAIL_SEND_FAILED") {
+                process.stderr.write(`[accounts-api] ${err.message}\n`);
+                sendJson(res, 502, {
+                  error: "Could not send reset email. Try again later."
+                });
+                return true;
+              }
+              throw err;
+            }
+          }
+        }
+        sendJson(res, 200, generic);
+        return true;
+      }
+
+      if (urlPath === "/api/auth/reset-password" && req.method === "POST") {
+        const body = await readJsonBody(req);
+        const token = String(body.token || "").trim();
+        const password = String(body.password || "");
+        if (!token) {
+          sendJson(res, 400, { error: "Missing reset token." });
+          return true;
+        }
+        if (password.length < 6) {
+          sendJson(res, 400, { error: "Password must be at least 6 characters." });
+          return true;
+        }
+        try {
+          const user = await store.resetPasswordWithToken(token, password);
+          const sessionToken = await store.createSession(user._id);
+          sendJson(res, 200, { user, token: sessionToken });
+        } catch (err) {
+          if (err.code === "BAD_RESET") {
+            sendJson(res, 400, { error: err.message });
+            return true;
+          }
+          throw err;
+        }
         return true;
       }
 
@@ -197,7 +283,7 @@ function createAccountsHttp(store) {
         sendJson(res, 401, { error: err.message });
         return true;
       }
-      if (err.code === "USERNAME_TAKEN") {
+      if (err.code === "USERNAME_TAKEN" || err.code === "EMAIL_TAKEN") {
         sendJson(res, 409, { error: err.message });
         return true;
       }

@@ -136,11 +136,27 @@
       <div id="authPanel" class="landing-grid">
         <section class="landing-card landing-account-card">
           <h2>Account</h2>
-          <p>Create an account or sign in to play multiplayer.</p>
+          <p>Sign in with username or email. Create an account with a username (email optional — needed for password reset).</p>
           <form id="authForm" class="landing-auth-form" action="#" method="post">
             <label>
-              Username
-              <input id="authUsername" name="username" autocomplete="username" maxlength="20" required />
+              Username or email
+              <input
+                id="authUsername"
+                name="username"
+                autocomplete="username"
+                maxlength="254"
+                required
+              />
+            </label>
+            <label id="authEmailLabel">
+              Email <span class="landing-field-optional">(optional for new accounts)</span>
+              <input
+                id="authEmail"
+                name="email"
+                type="email"
+                autocomplete="email"
+                maxlength="254"
+              />
             </label>
             <label>
               Password
@@ -150,7 +166,24 @@
               <button type="submit" id="loginBtn">Sign in</button>
               <button type="button" id="registerBtn">Create account</button>
             </div>
+            <p class="landing-auth-links">
+              <button type="button" id="forgotPasswordBtn" class="landing-text-btn">Forgot password?</button>
+            </p>
             <p id="authError" class="landing-error" aria-live="polite"></p>
+          </form>
+          <form id="forgotForm" class="landing-auth-form" action="#" method="post" hidden>
+            <p class="landing-forgot-hint">
+              Enter the username or email on your account. We’ll email a reset link if an email is saved.
+            </p>
+            <label>
+              Username or email
+              <input id="forgotLogin" name="login" autocomplete="username" maxlength="254" required />
+            </label>
+            <div class="landing-auth-actions">
+              <button type="submit" id="forgotSubmitBtn">Send reset link</button>
+              <button type="button" id="forgotBackBtn">Back to sign in</button>
+            </div>
+            <p id="forgotError" class="landing-error" aria-live="polite"></p>
           </form>
         </section>
       </div>
