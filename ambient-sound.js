@@ -275,6 +275,82 @@
     }));
   }
 
+  function playShuffleRustle(options = {}) {
+    if (muted) {
+      return;
+    }
+    const audio = ensureContext();
+    if (!audio) {
+      return;
+    }
+
+    const run = () => {
+      if (!audio || audio.state !== "running") {
+        return;
+      }
+      const durationMs = Number(options.durationMs);
+      const spanSec = Number.isFinite(durationMs)
+        ? Math.max(0.28, durationMs / 1000)
+        : 0.42;
+      const layers = 6;
+      const master = audio.createGain();
+      const tone = audio.createBiquadFilter();
+      tone.type = "lowpass";
+      tone.frequency.value = 3200;
+      tone.Q.value = 0.5;
+      // Soft but clearly audible through laptop/phone speakers.
+      master.gain.value = 0.55;
+      master.connect(tone).connect(audio.destination);
+
+      for (let index = 0; index < layers; index += 1) {
+        const progress = index / (layers - 1);
+        const start =
+          audio.currentTime + progress * spanSec * 0.7 + Math.random() * 0.03;
+        const duration = 0.14 + Math.random() * 0.1;
+        const frames = Math.max(1, Math.floor(audio.sampleRate * duration));
+        const buffer = audio.createBuffer(1, frames, audio.sampleRate);
+        const samples = buffer.getChannelData(0);
+        let brown = 0;
+        for (let i = 0; i < frames; i += 1) {
+          const white = Math.random() * 2 - 1;
+          brown = (brown + white * 0.04) * 0.975;
+          const t = i / Math.max(1, frames - 1);
+          const envelope = Math.sin(Math.PI * t) ** 1.6;
+          samples[i] = (brown * 4.5 + white * 0.22) * envelope;
+        }
+        const source = audio.createBufferSource();
+        const filter = audio.createBiquadFilter();
+        const gain = audio.createGain();
+        source.buffer = buffer;
+        filter.type = "bandpass";
+        filter.frequency.value = 900 + Math.random() * 1400;
+        filter.Q.value = 0.55;
+        const peak = 0.22 + Math.random() * 0.12;
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.exponentialRampToValueAtTime(peak, start + 0.025);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+        source.connect(filter).connect(gain).connect(master);
+        source.start(start);
+        source.stop(start + duration + 0.03);
+      }
+
+      window.setTimeout(() => {
+        try {
+          master.disconnect();
+          tone.disconnect();
+        } catch {
+          /* already gone */
+        }
+      }, Math.ceil(spanSec * 1000) + 400);
+    };
+
+    if (audio.state === "suspended") {
+      void audio.resume().then(run).catch(() => {});
+      return;
+    }
+    run();
+  }
+
   function primeFromGesture() {
     if (!muted) {
       ensureContext();
@@ -336,6 +412,7 @@
     isMuted: () => muted,
     setMuted,
     startAmbient,
-    stopAmbient
+    stopAmbient,
+    playShuffleRustle
   };
 })();

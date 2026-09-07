@@ -1220,6 +1220,7 @@ function onAnyDragEnd() {
   if (window.GlobbleRackReorder) {
     window.GlobbleRackReorder.finishDragGhost();
   }
+  window.GlobbleBoardZoom?.endDragFocus?.({ restore: false });
   rackEl.classList.remove("rack-reorder-active");
   draggingRackIndex = null;
   draggingTurnTilePos = null;
@@ -1227,6 +1228,10 @@ function onAnyDragEnd() {
 
 function clearActiveTileDragState() {
   window.GlobbleRackReorder?.finishDragGhost();
+  // Don't kill placement zoom mid-drag when the board/rack re-renders.
+  if (!window.GlobbleTilePointerDrag?.isActive?.()) {
+    window.GlobbleBoardZoom?.endDragFocus?.({ restore: false });
+  }
   rackEl?.classList.remove("rack-reorder-active");
 }
 
@@ -1838,6 +1843,8 @@ async function shuffleRack() {
   ) {
     return;
   }
+  // Play during the click gesture so browsers allow audio (esp. after network delay online).
+  window.GlobbleSound?.playShuffleRustle?.({ durationMs: 420 });
   shufflePrevRack = cloneRackSnapshot(players[currentPlayer].rack);
   shuffleSlotSources = shuffleRackSlots(players[currentPlayer].rack);
   selectedRackIndex = null;

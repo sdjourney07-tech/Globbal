@@ -381,7 +381,8 @@ button {
 }
 
 .landing-brand-tray .logo-wordmark {
-  width: min(408px, calc(100vw - 2.75rem));
+  width: 100%;
+  max-width: 100%;
 }
 
 .landing-grid {

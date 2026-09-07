@@ -131,8 +131,7 @@ function main() {
     oceansSeas: [],
     baysGulfsBights: [],
     usaStates: [],
-    irishCounties: [],
-    britishShires: [],
+    ukCounties: [],
     worldCities: [],
     usaCities: []
   };
@@ -231,18 +230,13 @@ function main() {
 
   for (const word of words) {
     const entry = meta[word];
-    if (entry?.kind === "county" || countyCompacts.has(compactWord(word))) {
-      categories.irishCounties.push(word);
-      if (entry?.kind !== "country" && entry?.kind !== "state") {
-        assigned.add(word);
-      }
-    }
-  }
-
-  for (const word of words) {
-    const entry = meta[word];
-    if (entry?.kind === "shire" || shireCompacts.has(compactWord(word))) {
-      categories.britishShires.push(word);
+    if (
+      entry?.kind === "county" ||
+      entry?.kind === "shire" ||
+      countyCompacts.has(compactWord(word)) ||
+      shireCompacts.has(compactWord(word))
+    ) {
+      categories.ukCounties.push(word);
       if (entry?.kind !== "country" && entry?.kind !== "state") {
         assigned.add(word);
       }
@@ -321,8 +315,7 @@ function main() {
         oceansSeas: categories.oceansSeas.length,
         baysGulfsBights: categories.baysGulfsBights.length,
         usaStates: categories.usaStates.length,
-        irishCounties: categories.irishCounties.length,
-        britishShires: categories.britishShires.length,
+        ukCounties: categories.ukCounties.length,
         worldCities: categories.worldCities.length,
         usaCities: categories.usaCities.length,
         other: categories.other.length,

@@ -8,6 +8,10 @@
     if (window.GlobbleSound?.isMuted?.()) {
       return null;
     }
+    // Prefer the shared game audio context so shuffle works after ambient unlock.
+    if (typeof window.GlobbleSound?.playShuffleRustle === "function") {
+      return null;
+    }
     if (audioContext) {
       if (audioContext.state === "suspended") {
         void audioContext.resume().catch(() => {});
@@ -20,6 +24,9 @@
     }
     try {
       audioContext = new AudioContextClass();
+      if (audioContext.state === "suspended") {
+        void audioContext.resume().catch(() => {});
+      }
       return audioContext;
     } catch {
       return null;
@@ -27,86 +34,48 @@
   }
 
   function playBoing() {
-    const context = getAudioContext();
-    if (!context || context.state !== "running") {
-      return;
-    }
-    const now = context.currentTime;
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    oscillator.type = "sine";
-    oscillator.frequency.setValueAtTime(125, now);
-    oscillator.frequency.exponentialRampToValueAtTime(235, now + 0.055);
-    oscillator.frequency.exponentialRampToValueAtTime(92, now + 0.28);
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.16, now + 0.018);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.31);
-    oscillator.connect(gain).connect(context.destination);
-    oscillator.start(now);
-    oscillator.stop(now + 0.32);
+    // Intentionally silent — shuffle uses GlobbleSound.playShuffleRustle.
   }
 
-  function playDiceClatter(tileCount) {
-    const context = getAudioContext();
-    if (!context || context.state !== "running") {
+  function playDiceClatter(tileCount, options = {}) {
+    if (window.GlobbleSound?.playShuffleRustle) {
+      window.GlobbleSound.playShuffleRustle(options);
       return;
     }
-    const master = context.createGain();
-    const compressor = context.createDynamicsCompressor();
-    master.gain.value = 0.72;
-    compressor.threshold.value = -18;
-    compressor.knee.value = 10;
-    compressor.ratio.value = 5;
-    master.connect(compressor).connect(context.destination);
-
-    const hits = Math.max(6, Math.min(12, Math.ceil(tileCount * 0.7)));
-    for (let index = 0; index < hits; index += 1) {
-      const start = context.currentTime + index * 0.052 + Math.random() * 0.028;
-      const duration = 0.08 + Math.random() * 0.04;
-      const frameCount = Math.max(1, Math.floor(context.sampleRate * duration));
-      const buffer = context.createBuffer(1, frameCount, context.sampleRate);
-      const samples = buffer.getChannelData(0);
-      for (let i = 0; i < frameCount; i += 1) {
-        const decay = 1 - i / frameCount;
-        samples[i] = (Math.random() * 2 - 1) * decay * decay;
-      }
-      const source = context.createBufferSource();
-      const filter = context.createBiquadFilter();
-      const noiseGain = context.createGain();
-      filter.type = "bandpass";
-      filter.frequency.value = 1250 + Math.random() * 2300;
-      filter.Q.value = 0.7 + Math.random() * 0.8;
-      noiseGain.gain.setValueAtTime(0.13 + Math.random() * 0.07, start);
-      noiseGain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-      source.buffer = buffer;
-      source.connect(filter).connect(noiseGain).connect(master);
-      source.start(start);
-
-      // A short pitched knock gives the broadband noise enough body to remain
-      // audible through small phone speakers.
-      const knock = context.createOscillator();
-      const knockGain = context.createGain();
-      const pitch = 720 + Math.random() * 780;
-      knock.type = index % 2 ? "triangle" : "square";
-      knock.frequency.setValueAtTime(pitch, start);
-      knock.frequency.exponentialRampToValueAtTime(pitch * 0.58, start + duration);
-      knockGain.gain.setValueAtTime(0.085 + Math.random() * 0.035, start);
-      knockGain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-      knock.connect(knockGain).connect(master);
-      knock.start(start);
-      knock.stop(start + duration);
+    // Fallback if ambient-sound.js is missing.
+    const context = getAudioContext();
+    if (!context) {
+      return;
     }
-
-    window.setTimeout(() => {
-      master.disconnect();
-      compressor.disconnect();
-    }, 1100);
+    const run = () => {
+      if (context.state !== "running") {
+        return;
+      }
+      const now = context.currentTime;
+      const osc = context.createOscillator();
+      const gain = context.createGain();
+      osc.type = "triangle";
+      osc.frequency.value = 180;
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.08, now + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.2);
+      osc.connect(gain).connect(context.destination);
+      osc.start(now);
+      osc.stop(now + 0.22);
+    };
+    if (context.state === "suspended") {
+      void context.resume().then(run).catch(() => {});
+      return;
+    }
+    run();
   }
 
   function primeAudioFromShuffleControl(event) {
     const target = event.target;
     if (target instanceof Element && target.closest("#shuffleRackBtn")) {
-      getAudioContext();
+      if (!window.GlobbleSound?.isMuted?.()) {
+        window.GlobbleSound?.startAmbient?.();
+      }
     }
   }
 
@@ -345,7 +314,7 @@
     });
 
     // Match the rack shuffle: recalled tiles clatter as they reach the rack.
-    playDiceClatter(states.length);
+    playDiceClatter(states.length, { durationMs: 160 });
     await animateStates(states, 45, (t, state) => {
       const e = easeOutCubic(t);
       const settle = 1 + (1 - e) * 0.04;
@@ -447,7 +416,7 @@
     }
 
     pinTiles(rackEl, states);
-    playBoing();
+    // Sound is triggered from the Shuffle button click (user gesture).
 
     // Give the shuffle a distinct jump, travel, and landing. Keeping the
     // tiles above the rack during the slot change makes the new order easy
@@ -476,7 +445,6 @@
       };
     });
 
-    playDiceClatter(states.length);
     await animateStates(states, 105, (t, state) => {
       const e = easeOutCubic(t);
       const jumpHeight = Math.max(52, state.h * 1.35);

@@ -1,9 +1,13 @@
 /**
  * Board viewport: pinch-zoom anytime, Ctrl+scroll zoom, and pan while zoomed.
- * Placing tiles does not move the camera.
+ * Dragging a tile over the board temporarily zooms under the ghost (WWF-style).
  */
 (function boardZoom() {
   const PLACEMENT_ZOOM_SCALE = 1.88;
+  const DRAG_FOCUS_SCALE = 1.78;
+  const DRAG_FOCUS_SCALE_LERP = 0.38;
+  const DRAG_FOCUS_EDGE_PX = 52;
+  const DRAG_FOCUS_EDGE_PAN_PX = 16;
   const MIN_SCALE = 1;
   const MAX_SCALE = 2.4;
   const PLACEMENT_ANIM_MS = 180;
@@ -23,7 +27,11 @@
     gesture: null,
     suppressClick: false,
     animFrameId: null,
-    animToken: 0
+    animToken: 0,
+    dragFocusActive: false,
+    dragFocusPaused: false,
+    dragFocusSnapshot: null,
+    dropHoverCell: null
   };
 
   function cancelAnim() {
@@ -76,44 +84,50 @@
   }
 
   function getTranslateBounds(layout, scale) {
-    // Allow any point on the board to be brought to the viewport center
-    // (with slack), so corners/edges are fully inspectable while zoomed.
-    const slackX = layout.wrapW * 0.18;
-    const slackY = layout.wrapH * 0.18;
-    const centerX = layout.wrapW / 2;
-    const centerY = layout.wrapH / 2;
+    // Keep the board covering the viewport. No large empty gutters around it.
     const origin = getStageOrigin(layout);
     const boardLeft = layout.boardLeft;
     const boardRight = layout.boardLeft + layout.boardW;
     const boardTop = layout.boardTop;
     const boardBottom = layout.boardTop + layout.boardH;
+    const edgePad = 2;
 
-    return {
-      minX:
-        centerX -
-        layout.stageLeft -
-        origin.x -
-        (boardRight - origin.x) * scale -
-        slackX,
-      maxX:
-        centerX -
-        layout.stageLeft -
-        origin.x -
-        (boardLeft - origin.x) * scale +
-        slackX,
-      minY:
-        centerY -
-        layout.stageTop -
-        origin.y -
-        (boardBottom - origin.y) * scale -
-        slackY,
-      maxY:
-        centerY -
-        layout.stageTop -
-        origin.y -
-        (boardTop - origin.y) * scale +
-        slackY
-    };
+    let minX =
+      layout.wrapW -
+      layout.stageLeft -
+      origin.x * (1 - scale) -
+      boardRight * scale -
+      edgePad;
+    let maxX =
+      -layout.stageLeft -
+      origin.x * (1 - scale) -
+      boardLeft * scale +
+      edgePad;
+    let minY =
+      layout.wrapH -
+      layout.stageTop -
+      origin.y * (1 - scale) -
+      boardBottom * scale -
+      edgePad;
+    let maxY =
+      -layout.stageTop -
+      origin.y * (1 - scale) -
+      boardTop * scale +
+      edgePad;
+
+    // Scaled board fits inside the wrap → lock to the centered pose.
+    if (minX > maxX) {
+      const mid = (minX + maxX) / 2;
+      minX = mid;
+      maxX = mid;
+    }
+    if (minY > maxY) {
+      const mid = (minY + maxY) / 2;
+      minY = mid;
+      maxY = mid;
+    }
+
+    return { minX, maxX, minY, maxY };
   }
 
   function clampTransform() {
@@ -124,25 +138,58 @@
     }
 
     state.scale = clamp(state.scale, MIN_SCALE, MAX_SCALE);
-
-    if (state.scale <= MIN_SCALE) {
-      state.scale = MIN_SCALE;
-      state.translateX = 0;
-      state.translateY = 0;
-      return;
-    }
-
     const bounds = getTranslateBounds(layout, state.scale);
-    state.translateX = clamp(
+    let translateX = clamp(
       state.translateX,
       Math.min(bounds.minX, bounds.maxX),
       Math.max(bounds.minX, bounds.maxX)
     );
-    state.translateY = clamp(
+    let translateY = clamp(
       state.translateY,
       Math.min(bounds.minY, bounds.maxY),
       Math.max(bounds.minY, bounds.maxY)
     );
+
+    // As zoom approaches 1x, ease pan back to center so fully zooming out
+    // doesn't hard-snap translation in one frame.
+    const settleStart = 1.16;
+    if (state.scale < settleStart) {
+      const centerX = (bounds.minX + bounds.maxX) / 2;
+      const centerY = (bounds.minY + bounds.maxY) / 2;
+      const u =
+        state.scale <= MIN_SCALE
+          ? 0
+          : (state.scale - MIN_SCALE) / (settleStart - MIN_SCALE);
+      const keep = u * u;
+      translateX = centerX + (translateX - centerX) * keep;
+      translateY = centerY + (translateY - centerY) * keep;
+    }
+
+    state.translateX = translateX;
+    state.translateY = translateY;
+  }
+
+  function getRestPose() {
+    // Full-board rest is always the true 1x centered pose (not cover-bound mid,
+    // which can be a tiny non-zero after padding).
+    return { scale: MIN_SCALE, translateX: 0, translateY: 0 };
+  }
+
+  function settleToRest(durationMs = 200) {
+    const rest = getRestPose();
+    state.userOverridden = false;
+    const alreadyRest =
+      Math.abs(state.scale - rest.scale) < 0.002 &&
+      Math.abs(state.translateX - rest.translateX) < 0.75 &&
+      Math.abs(state.translateY - rest.translateY) < 0.75;
+    if (alreadyRest) {
+      state.scale = rest.scale;
+      state.translateX = rest.translateX;
+      state.translateY = rest.translateY;
+      applyTransform(false);
+      return;
+    }
+    animateTo(rest, durationMs);
   }
 
   function applyTransform(animateCss = false) {
@@ -394,8 +441,192 @@
     );
   }
 
+  function clearDropHover() {
+    state.dropHoverCell?.classList.remove("cell-drop-hover");
+    state.dropHoverCell = null;
+  }
+
+  function updateDropHover(clientX, clientY) {
+    const board = getBoardEl();
+    if (!board || !Number.isFinite(clientX) || !Number.isFinite(clientY)) {
+      clearDropHover();
+      return;
+    }
+
+    let hit = null;
+    const cells = board.querySelectorAll(".cell");
+    for (let i = 0; i < cells.length; i += 1) {
+      const cell = cells[i];
+      const occupied = cell.querySelector(".tile:not(.tile-drag-source)");
+      if (occupied) {
+        continue;
+      }
+      const rect = cell.getBoundingClientRect();
+      if (
+        clientX >= rect.left &&
+        clientX <= rect.right &&
+        clientY >= rect.top &&
+        clientY <= rect.bottom
+      ) {
+        hit = cell;
+        break;
+      }
+    }
+
+    if (state.dropHoverCell === hit) {
+      return;
+    }
+    clearDropHover();
+    state.dropHoverCell = hit;
+    hit?.classList.add("cell-drop-hover");
+  }
+
+  function beginDragFocus() {
+    if (!state.wrap || !state.stage) {
+      return;
+    }
+    cancelAnim();
+    state.dragFocusActive = true;
+    state.dragFocusPaused = false;
+    state.dragFocusSnapshot = {
+      scale: state.scale,
+      translateX: state.translateX,
+      translateY: state.translateY,
+      userOverridden: state.userOverridden
+    };
+    state.stage.classList.remove("board-stage-zoom-anim");
+  }
+
+  function restoreDragFocusSnapshot(animate = true) {
+    const snapshot = state.dragFocusSnapshot;
+    if (!snapshot) {
+      return;
+    }
+    clearDropHover();
+    const target = {
+      scale: snapshot.scale,
+      translateX: snapshot.translateX,
+      translateY: snapshot.translateY
+    };
+    if (animate) {
+      animateTo(target, 150);
+      return;
+    }
+    cancelAnim();
+    state.scale = target.scale;
+    state.translateX = target.translateX;
+    state.translateY = target.translateY;
+    applyTransform(false);
+  }
+
+  function pauseDragFocus() {
+    if (!state.dragFocusActive) {
+      return;
+    }
+    // Keep the zoom while dragging off-board (e.g. over the rack). Restoring
+    // here used to start an animation that fought the next zoom-in frames.
+    state.dragFocusPaused = true;
+    clearDropHover();
+  }
+
+  function updateDragFocus(clientX, clientY) {
+    if (!state.dragFocusActive || !state.wrap || !state.stage) {
+      return;
+    }
+    if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) {
+      pauseDragFocus();
+      return;
+    }
+
+    state.dragFocusPaused = false;
+    cancelAnim();
+
+    const wrapRect = state.wrap.getBoundingClientRect();
+    const snapshot = state.dragFocusSnapshot || {
+      scale: 1,
+      translateX: 0,
+      translateY: 0
+    };
+    const targetScale = clamp(
+      Math.max(DRAG_FOCUS_SCALE, snapshot.scale),
+      MIN_SCALE,
+      MAX_SCALE
+    );
+
+    // Zoom under the focus point so the cell about to receive the tile stays readable.
+    const local = screenPointToStageLocal(clientX, clientY);
+    const point = wrapPointFromClient(clientX, clientY);
+    const scaleDelta = targetScale - state.scale;
+    const nextScale =
+      Math.abs(scaleDelta) <= 0.02
+        ? targetScale
+        : state.scale + scaleDelta * Math.max(DRAG_FOCUS_SCALE_LERP, 0.55);
+    setTransformAtPoint(nextScale, point.x, point.y, local.x, local.y);
+
+    // Near the viewport edge, nudge the board so far cells stay reachable while zoomed.
+    let panX = 0;
+    let panY = 0;
+    if (clientX < wrapRect.left + DRAG_FOCUS_EDGE_PX) {
+      panX = DRAG_FOCUS_EDGE_PAN_PX;
+    } else if (clientX > wrapRect.right - DRAG_FOCUS_EDGE_PX) {
+      panX = -DRAG_FOCUS_EDGE_PAN_PX;
+    }
+    if (clientY < wrapRect.top + DRAG_FOCUS_EDGE_PX) {
+      panY = DRAG_FOCUS_EDGE_PAN_PX;
+    } else if (clientY > wrapRect.bottom - DRAG_FOCUS_EDGE_PX) {
+      panY = -DRAG_FOCUS_EDGE_PAN_PX;
+    }
+    if (panX || panY) {
+      state.translateX += panX;
+      state.translateY += panY;
+      applyTransform(false);
+    }
+
+    updateDropHover(clientX, clientY);
+  }
+
+  function endDragFocus({ restore = false } = {}) {
+    if (!state.dragFocusActive) {
+      clearDropHover();
+      return;
+    }
+    const snapshot = state.dragFocusSnapshot;
+    state.dragFocusActive = false;
+    state.dragFocusPaused = false;
+    state.dragFocusSnapshot = null;
+    clearDropHover();
+
+    if (restore && snapshot) {
+      state.userOverridden = snapshot.userOverridden;
+      animateTo(
+        {
+          scale: snapshot.scale,
+          translateX: snapshot.translateX,
+          translateY: snapshot.translateY
+        },
+        160
+      );
+      return;
+    }
+
+    // Keep the placement zoom; zoom out with pinch (mobile) or scroll (desktop).
+    cancelAnim();
+    if (
+      state.scale > MIN_SCALE + 0.01 ||
+      Math.abs(state.translateX) > 1 ||
+      Math.abs(state.translateY) > 1
+    ) {
+      state.userOverridden = true;
+    }
+    applyTransform(false);
+  }
+
   function reset(animate = true) {
     cancelAnim();
+    clearDropHover();
+    state.dragFocusActive = false;
+    state.dragFocusPaused = false;
+    state.dragFocusSnapshot = null;
     const target = { scale: 1, translateX: 0, translateY: 0 };
     state.userOverridden = false;
     state.placementActive = false;
@@ -606,11 +837,19 @@
       } else {
         state.gesture = null;
       }
+      if (state.scale <= 1.08) {
+        settleToRest(220);
+      }
       return;
     }
 
     if (event.touches.length === 1 && state.gesture?.type === "pinch") {
       const touch = event.touches[0];
+      if (state.scale <= 1.08) {
+        state.gesture = null;
+        settleToRest(220);
+        return;
+      }
       if (canSingleFingerPan()) {
         startPanGesture(touch.clientX, touch.clientY, "touch");
       } else {
@@ -636,11 +875,22 @@
     state.userOverridden = true;
     state.stage?.classList.remove("board-stage-zoom-anim");
 
-    const anchor = screenPointToStageLocal(event.clientX, event.clientY);
-    const point = wrapPointFromClient(event.clientX, event.clientY);
     const factor = Math.exp(-event.deltaY * 0.0016);
     const nextScale = clamp(state.scale * factor, MIN_SCALE, MAX_SCALE);
+
+    // Always allow returning to the full board; ease the last bit to rest.
+    if (nextScale <= MIN_SCALE + 0.001) {
+      settleToRest(200);
+      return;
+    }
+
+    const anchor = screenPointToStageLocal(event.clientX, event.clientY);
+    const point = wrapPointFromClient(event.clientX, event.clientY);
     setTransformAtPoint(nextScale, point.x, point.y, anchor.x, anchor.y);
+
+    if (state.scale <= 1.02) {
+      settleToRest(180);
+    }
   }
 
   function onResize() {
@@ -690,7 +940,11 @@
   window.GlobbleBoardZoom = {
     init,
     syncFromTiles,
-    reset
+    reset,
+    beginDragFocus,
+    updateDragFocus,
+    pauseDragFocus,
+    endDragFocus
   };
 
   if (document.readyState === "loading") {

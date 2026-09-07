@@ -9,8 +9,7 @@
     { id: "countries", label: "Countries" },
     { id: "abbreviations", label: "Abbreviations" },
     { id: "usaStates", label: "USA states" },
-    { id: "irishCounties", label: "Irish counties" },
-    { id: "britishShires", label: "British shires" },
+    { id: "ukCounties", label: "UK counties" },
     { id: "rivers", label: "Rivers" },
     { id: "oceansSeas", label: "Oceans & seas" },
     { id: "baysGulfsBights", label: "Bays, gulfs & bights" },
@@ -385,7 +384,7 @@
       return tr;
     }
 
-    if (categoryId === "irishCounties" || categoryId === "britishShires") {
+    if (categoryId === "ukCounties") {
       const tdName = document.createElement("td");
       tdName.textContent = word;
       const tdRegion = document.createElement("td");
@@ -543,11 +542,8 @@
     if (categoryId === "usaStates") {
       return "<tr><th scope=\"col\">State</th><th scope=\"col\" class=\"dictionary-population\">Population</th></tr>";
     }
-    if (categoryId === "irishCounties") {
-      return "<tr><th scope=\"col\">County</th><th scope=\"col\">Region</th><th scope=\"col\" class=\"dictionary-population\">Population</th></tr>";
-    }
-    if (categoryId === "britishShires") {
-      return "<tr><th scope=\"col\">Shire</th><th scope=\"col\">Region</th><th scope=\"col\" class=\"dictionary-population\">Population</th></tr>";
+    if (categoryId === "ukCounties") {
+      return "<tr><th scope=\"col\">County / shire</th><th scope=\"col\">Region</th><th scope=\"col\" class=\"dictionary-population\">Population</th></tr>";
     }
     if (categoryId === "rivers") {
       return "<tr><th scope=\"col\">River</th><th scope=\"col\">Region</th><th scope=\"col\" class=\"dictionary-population\">Length</th></tr>";
@@ -616,7 +612,7 @@
       table.classList.add("dictionary-table-abbreviations");
     } else if (categoryId === "usaCities" || categoryId === "worldCities") {
       table.classList.add("dictionary-table-place-cities");
-    } else if (categoryId === "irishCounties" || categoryId === "britishShires") {
+    } else if (categoryId === "ukCounties") {
       table.classList.add("dictionary-table-rivers");
     } else if (categoryId === "rivers") {
       table.classList.add("dictionary-table-rivers");

@@ -100,6 +100,49 @@
     };
   }
 
+  function getGhostCenter(fallbackX, fallbackY) {
+    const dragRect = window.GlobbleRackReorder?.getActiveDragRect?.();
+    if (!dragRect) {
+      return { x: fallbackX, y: fallbackY };
+    }
+    return {
+      x: dragRect.left + dragRect.width / 2,
+      y: dragRect.top + dragRect.height / 2
+    };
+  }
+
+  function syncBoardDragFocus(event, overRack) {
+    const zoom = window.GlobbleBoardZoom;
+    if (!zoom?.updateDragFocus) {
+      return;
+    }
+    const wrap = document.querySelector(".board-wrap");
+    if (!wrap) {
+      return;
+    }
+    const rect = wrap.getBoundingClientRect();
+    const pointOver = (x, y) =>
+      x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+    const center = getGhostCenter(event.clientX, event.clientY);
+    const ghostOver = pointOver(center.x, center.y);
+    const pointerOver = pointOver(event.clientX, event.clientY);
+
+    // Still treat rack hover as off-board for drop-target highlight only when
+    // the pointer is clearly on the rack and not on the board.
+    if (overRack && !pointerOver && !ghostOver) {
+      zoom.pauseDragFocus?.();
+      return;
+    }
+    if (!ghostOver && !pointerOver) {
+      zoom.pauseDragFocus?.();
+      return;
+    }
+
+    const focusX = ghostOver ? center.x : event.clientX;
+    const focusY = ghostOver ? center.y : event.clientY;
+    zoom.updateDragFocus(focusX, focusY);
+  }
+
   function engageDrag(event) {
     const state = pending;
     if (!state) {
@@ -121,6 +164,8 @@
     }
 
     window.GlobbleRackReorder?.beginPointerDrag(state.tile, event.clientX, event.clientY);
+    window.GlobbleBoardZoom?.beginDragFocus?.();
+    syncBoardDragFocus(event, false);
   }
 
   function onPointerMove(event) {
@@ -143,19 +188,28 @@
 
     const rackEl = options?.rackEl;
     const reorder = window.GlobbleRackReorder;
+    let overRack = false;
+
+    if (rackEl) {
+      const rackRect = rackEl.getBoundingClientRect();
+      overRack =
+        event.clientX >= rackRect.left &&
+        event.clientX <= rackRect.right &&
+        event.clientY >= rackRect.top &&
+        event.clientY <= rackRect.bottom;
+    }
+
+    syncBoardDragFocus(event, overRack);
+
     if (!rackEl || !reorder) {
       return;
     }
 
-    const rackRect = rackEl.getBoundingClientRect();
-    const overRack =
-      event.clientX >= rackRect.left &&
-      event.clientX <= rackRect.right &&
-      event.clientY >= rackRect.top &&
-      event.clientY <= rackRect.bottom;
-
     if (!overRack) {
       rackEl.classList.remove("rack-reorder-active");
+      rackEl.querySelectorAll(".rack-slot").forEach((el) => {
+        el.classList.remove("rack-insert-before", "rack-slot-return-target");
+      });
       return;
     }
 
@@ -195,13 +249,14 @@
 
     // The drag ghost is intentionally lifted above a finger on touch screens.
     // Resolve the drop from the visible tile center, not the obscured fingertip.
-    const dragRect = window.GlobbleRackReorder?.getActiveDragRect?.();
-    const dropX = dragRect ? dragRect.left + dragRect.width / 2 : event.clientX;
-    const dropY = dragRect ? dragRect.top + dragRect.height / 2 : event.clientY;
+    const center = getGhostCenter(event.clientX, event.clientY);
+    const dropX = center.x;
+    const dropY = center.y;
 
     try {
       await options.onDrop(dropX, dropY);
     } finally {
+      window.GlobbleBoardZoom?.endDragFocus?.({ restore: false });
       options.onDragEnd();
     }
   }

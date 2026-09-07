@@ -890,6 +890,7 @@ function onAnyDragEnd() {
   if (window.GlobbleRackReorder) {
     window.GlobbleRackReorder.finishDragGhost();
   }
+  window.GlobbleBoardZoom?.endDragFocus?.({ restore: false });
   rackEl.classList.remove("rack-reorder-active");
   draggingRackIndex = null;
   draggingTurnTilePos = null;
@@ -1280,6 +1281,8 @@ shuffleRackBtn.addEventListener("click", () => {
   if (!canRackBoardInteract() || rackShuffleAnimating || rackEl.dataset.shuffling === "1") {
     return;
   }
+  // Play during the click gesture so browsers allow audio after the server round-trip.
+  window.GlobbleSound?.playShuffleRustle?.({ durationMs: 420 });
   shufflePrevRack = (gameState.myRack || []).map((tile) => (tile ? { ...tile } : null));
   while (shufflePrevRack.length < RACK_SIZE) {
     shufflePrevRack.push(null);
