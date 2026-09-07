@@ -28,7 +28,7 @@
     { id: "usaCities", label: "USA cities", criteria: "Population greater than 10,000" }
   ];
 
-  const ANCIENT_CATEGORIES = [
+  const HISTORICAL_CATEGORIES = [
     { id: "historicalCountries", label: "Historical countries" },
     { id: "historicalRegions", label: "Historical regions" },
     { id: "historicalCities", label: "Historical cities" },
@@ -36,10 +36,7 @@
   ];
 
   function getCategories() {
-    if (window.GLOBBLE_DICTIONARY_VERSION === "ancient") {
-      return [...CATEGORIES, ...ANCIENT_CATEGORIES];
-    }
-    return CATEGORIES;
+    return [...CATEGORIES, ...HISTORICAL_CATEGORIES];
   }
 
   function invalidateDictionaryWordCache() {
@@ -80,17 +77,10 @@
     return count.toLocaleString();
   }
 
-  function includesAncientCategories() {
-    return window.GLOBBLE_DICTIONARY_VERSION === "ancient";
-  }
-
   function buildDictionaryMetaText(words, categoryCount) {
     const total = formatCount(words.length);
     const folders = formatCount(categoryCount);
-    if (includesAncientCategories()) {
-      return `${total} legal words in ${folders} folders — modern places plus historical entries at the bottom. Click a folder to browse.`;
-    }
-    return `${total} legal words in ${folders} folders. Click a folder to browse.`;
+    return `${total} legal words in ${folders} folders — modern places plus historical entries at the bottom. Click a folder to browse.`;
   }
 
   function formatElevationFeet(meta) {
@@ -727,11 +717,7 @@
       return;
     }
     const total = formatCount(words.length);
-    if (includesAncientCategories()) {
-      dictionaryHintEl.textContent = `${total} legal words — modern places plus historical countries, regions, cities, and kingdoms/empires in folders at the bottom.`;
-      return;
-    }
-    dictionaryHintEl.textContent = `${total} legal words in categorized folders.`;
+    dictionaryHintEl.textContent = `${total} legal words — modern places plus historical countries, regions, cities, and kingdoms/empires in folders at the bottom.`;
   }
 
   function refreshDictionaryPanel() {

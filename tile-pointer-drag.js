@@ -193,8 +193,14 @@
     pointerDragging = false;
     suppressClickUntil = Date.now() + 80;
 
+    // The drag ghost is intentionally lifted above a finger on touch screens.
+    // Resolve the drop from the visible tile center, not the obscured fingertip.
+    const dragRect = window.GlobbleRackReorder?.getActiveDragRect?.();
+    const dropX = dragRect ? dragRect.left + dragRect.width / 2 : event.clientX;
+    const dropY = dragRect ? dragRect.top + dragRect.height / 2 : event.clientY;
+
     try {
-      await options.onDrop(event.clientX, event.clientY);
+      await options.onDrop(dropX, dropY);
     } finally {
       options.onDragEnd();
     }

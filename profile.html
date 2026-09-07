@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <script src="./preview-embed.js"></script>
+    <title>Globbal — Profile</title>
+    <link rel="icon" href="./assets/favicon.ico" sizes="any" />
+    <link rel="icon" href="./assets/logo-mark.svg" type="image/svg+xml" />
+    <link rel="preload" href="./assets/parch2copy.png" as="image" />
+    <link rel="stylesheet" href="./styles.css?v=profile1" />
+    <link rel="stylesheet" href="./styles-splash.css?v=parch3" />
+    <link rel="stylesheet" href="./assets/fonts/globble-logo.css" />
+    <link
+      rel="stylesheet"
+      href="./styles-mobile.css?v=fill1"
+      media="screen and (max-width: 640px), screen and (max-height: 640px) and (orientation: landscape)"
+    />
+  </head>
+  <body class="landing-body">
+    <div class="landing-shell parchment-shell">
+      <div class="splash-parchment" aria-hidden="true">
+        <div class="splash-parchment-sheet-wrap">
+          <img
+            class="splash-parchment-sheet"
+            src="./assets/parch2copy.png"
+            alt=""
+            draggable="false"
+          />
+          <div class="splash-parchment-sheet-shade"></div>
+        </div>
+      </div>
+      <div class="splash-vignette" aria-hidden="true"></div>
+
+      <header class="landing-header">
+        <div class="landing-brand-tray rack-panel">
+          <h1 class="logo-wordmark-wrap">
+            <img
+              class="logo-wordmark"
+              src="./assets/logo-wordmark.svg"
+              width="425"
+              height="90"
+              alt="Globbal"
+            />
+          </h1>
+        </div>
+      </header>
+
+      <main class="landing">
+        <div class="landing-grid">
+          <section class="landing-card landing-profile-card">
+            <h2>Profile</h2>
+            <div class="profile-identity">
+              <div class="profile-avatar" id="profileAvatar" aria-hidden="true">
+                <span class="profile-avatar-initials" id="profileAvatarInitials"></span>
+              </div>
+              <div class="profile-identity-text">
+                <p id="profileDisplayName" class="profile-display-name"></p>
+                <p id="profileUsername" class="profile-handle"></p>
+                <p id="profileEmailHint" class="profile-email-hint"></p>
+              </div>
+            </div>
+            <button type="button" id="editProfileBtn" class="profile-edit-btn">Edit profile</button>
+            <dl class="profile-stats">
+              <div class="profile-stat">
+                <dt>Games played</dt>
+                <dd id="profileGamesPlayed">0</dd>
+              </div>
+              <div class="profile-stat">
+                <dt>Games won</dt>
+                <dd id="profileGamesWon">0</dd>
+              </div>
+            </dl>
+            <h3 class="profile-section-title">Past opponents</h3>
+            <p id="profileOpponentsHint" class="hint">Loading…</p>
+            <ul id="profileOpponentsList" class="profile-opponents-list"></ul>
+            <p id="profileError" class="landing-error" aria-live="polite"></p>
+            <button type="button" id="logoutBtn" class="profile-signout">Sign out</button>
+          </section>
+
+          <details id="gamesDisclosure" class="landing-card landing-disclosure landing-games" open>
+            <summary class="landing-disclosure-summary">
+              <span class="landing-disclosure-label">
+                <span class="landing-disclosure-title">Games</span>
+                <span class="landing-disclosure-teaser">Your challenges and matches in progress</span>
+              </span>
+            </summary>
+            <div class="landing-disclosure-body">
+              <div class="games-toolbar">
+                <button type="button" id="gamesRefreshBtn">Refresh</button>
+              </div>
+              <p id="gamesHint" class="hint">Loading…</p>
+              <ul id="gamesList" class="games-list"></ul>
+            </div>
+          </details>
+
+          <section class="landing-card">
+            <h2>Find a player</h2>
+            <p>Search by username and send a challenge.</p>
+            <div class="player-search-row">
+              <input
+                id="playerSearchInput"
+                type="search"
+                placeholder="Search username…"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <button type="button" id="playerSearchBtn">Search</button>
+            </div>
+            <p id="playerSearchError" class="landing-error" aria-live="polite"></p>
+            <ul id="playerSearchResults" class="player-search-results"></ul>
+          </section>
+
+          <a class="landing-card" href="./practice.html">
+            <h2>Practice (solo)</h2>
+            <p>Two-player rules on one device — play on your own anytime.</p>
+            <span class="landing-cta">Open practice →</span>
+          </a>
+        </div>
+
+        <div class="landing-actions">
+          <button type="button" id="openDictionaryBtn">Browse dictionary</button>
+          <p class="hint" id="dictionaryHint">
+            Modern places plus historical countries, regions, cities, and kingdoms/empires in folders at the bottom.
+          </p>
+        </div>
+      </main>
+
+      <dialog id="dictionaryDialog" class="dictionary-dialog" aria-labelledby="dictionaryTitle">
+        <div class="dictionary-inner">
+          <header class="dictionary-topbar">
+            <button type="button" id="dictionaryReturnBtn" class="dictionary-return tile-button">
+              Return
+            </button>
+            <h2 id="dictionaryTitle" class="dictionary-title">Legal Words</h2>
+            <button type="button" id="closeDictionaryBtn" class="dictionary-close tile-button" aria-label="Close dictionary">
+              Close
+            </button>
+          </header>
+          <label class="dictionary-search-label">
+            <span class="dictionary-search-hint">Filter</span>
+            <input
+              type="search"
+              id="dictionaryFilter"
+              class="dictionary-filter"
+              placeholder="Type to narrow the list…"
+              autocomplete="off"
+              spellcheck="false"
+            />
+          </label>
+          <p id="dictionaryMeta" class="dictionary-meta"></p>
+          <div class="dictionary-table-wrap rack-panel">
+            <div id="dictionaryCategories" class="dictionary-categories"></div>
+          </div>
+          <details id="dictionarySources" class="dictionary-sources">
+            <summary class="dictionary-sources-link">Sources</summary>
+            <div class="dictionary-attr">
+              <p>
+                Places merge <code>data/world-cities*.csv</code> (ODbL), GeoNames city dumps (CC-BY-4.0), and
+                OpenDataSoft GeoNames for populations. Rebuild: <code>npm run build:places</code>
+              </p>
+            </div>
+          </details>
+        </div>
+      </dialog>
+    </div>
+
+    <dialog id="editProfileDialog" class="profile-edit-dialog" aria-labelledby="editProfileTitle">
+      <form id="editProfileForm" class="profile-edit-form">
+        <h3 id="editProfileTitle" class="profile-edit-title">Edit profile</h3>
+        <p class="hint profile-edit-hint">
+          Username <span id="editProfileUsername" class="profile-edit-username"></span> is used to sign in and cannot be changed here.
+        </p>
+        <p id="editProfileError" class="landing-error profile-edit-error" aria-live="polite"></p>
+        <label class="profile-edit-label" for="editDisplayName">Display name</label>
+        <input
+          id="editDisplayName"
+          name="displayName"
+          type="text"
+          maxlength="40"
+          autocomplete="nickname"
+          placeholder="How your name appears"
+        />
+        <label class="profile-edit-label" for="editEmail">Email</label>
+        <input
+          id="editEmail"
+          name="email"
+          type="email"
+          autocomplete="email"
+          placeholder="Optional — for password reset"
+        />
+        <p class="hint">Leave email blank to remove it from your account.</p>
+        <div class="landing-auth-actions profile-edit-actions">
+          <button type="submit" id="editProfileSaveBtn">Save changes</button>
+          <button type="button" id="editProfileCancelBtn">Cancel</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="./accounts-client.js"></script>
+    <script src="./accounts-profile.js?v=profile-edit2"></script>
+    <script src="./dictionary-keys.js"></script>
+    <script src="./dictionary-alias-sources.js"></script>
+    <script>
+      (function loadDictionaryScript() {
+        const el = document.createElement("script");
+        el.src = "./dictionary.js";
+        el.async = true;
+        el.onload = function () {
+          const menu = document.createElement("script");
+          menu.src = "./dictionary-menu.js";
+          document.body.appendChild(menu);
+        };
+        el.onerror = function () {
+          const hint = document.getElementById("dictionaryHint");
+          if (hint) hint.textContent = "Dictionary failed to load.";
+        };
+        document.body.appendChild(el);
+      })();
+    </script>
+  </body>
+</html>

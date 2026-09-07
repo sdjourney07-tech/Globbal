@@ -23,12 +23,13 @@
         display: flex;
         flex-direction: column;
         align-items: center;
-        justify-content: center;
-        gap: 1rem;
-        padding: 1rem;
+        justify-content: flex-start;
+        gap: 0.65rem;
+        padding: 0.75rem;
         font-family: Inter, Segoe UI, system-ui, sans-serif;
         background: radial-gradient(circle at 50% 0%, #2a241c, #12100e 55%);
         color: #f3e8d4;
+        overflow: hidden;
       }
 
       .preview-header {
@@ -82,6 +83,16 @@
         border-color: #8b5a2b;
       }
 
+      .phone-fit {
+        flex: 1 1 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        min-height: 0;
+        overflow: hidden;
+      }
+
       .phone-shell {
         position: relative;
         padding: var(--bezel);
@@ -90,6 +101,8 @@
         box-shadow:
           0 24px 60px rgba(0, 0, 0, 0.55),
           inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        transform: scale(var(--phone-scale, 1));
+        transform-origin: center center;
       }
 
       .phone-screen {
@@ -121,20 +134,22 @@
     </style>
   </head>
   <body>
-    <header class="preview-header">
+    <header class="preview-header" id="previewChrome">
       <h1>Globbal</h1>
       <p>Mobile preview — 390×844 portrait (iPhone 14 / common Android size).</p>
     </header>
 
-    <div class="preview-controls">
+    <div class="preview-controls" id="previewControls">
       <label>
         Screen
         <select id="pageSelect">
           <option value="./splash.html" selected>Splash screen</option>
           <option value="./practice.html">Practice game</option>
-          <option value="./practice-ancient.html">Ancient practice</option>
-          <option value="./index.html?dictionary=1">Dictionary</option>
-          <option value="./index.html">Main menu</option>
+          <option value="./index.html">Sign in</option>
+          <option value="./profile.html">Profile</option>
+          <option value="./rules.html">Rules</option>
+          <option value="./index.html?dictionary=1">Dictionary (sign in)</option>
+          <option value="./profile.html?dictionary=1">Dictionary (profile)</option>
           <option value="./game-online.html">Online match</option>
         </select>
       </label>
@@ -143,9 +158,11 @@
       <a href="./splash.html" style="color: #e8cfa8; font-size: 0.85rem">Open full width</a>
     </div>
 
-    <div class="phone-shell" id="phoneShell">
-      <div class="phone-screen" id="phoneScreen">
-        <iframe id="gameFrame" title="Globbal mobile preview" src="./splash.html"></iframe>
+    <div class="phone-fit" id="phoneFit">
+      <div class="phone-shell" id="phoneShell">
+        <div class="phone-screen" id="phoneScreen">
+          <iframe id="gameFrame" title="Globbal mobile preview" src="./splash.html?embed=1"></iframe>
+        </div>
       </div>
     </div>
 
@@ -160,9 +177,37 @@
       const reloadBtn = document.getElementById("reloadBtn");
       const gameFrame = document.getElementById("gameFrame");
       const phoneScreen = document.getElementById("phoneScreen");
+      const phoneShell = document.getElementById("phoneShell");
+      const phoneFit = document.getElementById("phoneFit");
       const sizeLabel = document.getElementById("sizeLabel");
+      const previewChrome = document.getElementById("previewChrome");
 
       let landscape = false;
+
+      function withEmbed(url) {
+        const u = new URL(url, window.location.href);
+        u.searchParams.set("embed", "1");
+        return u.pathname + u.search;
+      }
+
+      function fitPhoneScale() {
+        const size = landscape ? LANDSCAPE : PORTRAIT;
+        const bezel = 20;
+        const controls = document.getElementById("previewControls");
+        const meta = document.getElementById("sizeLabel");
+        const chromeH =
+          (previewChrome?.offsetHeight || 0) +
+          (controls?.offsetHeight || 0) +
+          (meta?.offsetHeight || 0) +
+          24;
+        const availW = Math.max(200, window.innerWidth - 24);
+        const availH = Math.max(200, window.innerHeight - chromeH);
+        const scale = Math.min(1, availW / (size.w + bezel), availH / (size.h + bezel));
+        phoneShell.style.setProperty("--phone-scale", String(scale));
+        if (phoneFit) {
+          phoneFit.style.height = `${Math.ceil((size.h + bezel) * scale)}px`;
+        }
+      }
 
       function applySize() {
         const size = landscape ? LANDSCAPE : PORTRAIT;
@@ -171,10 +216,11 @@
         rotateBtn.setAttribute("aria-pressed", String(landscape));
         rotateBtn.textContent = landscape ? "Rotate (portrait)" : "Rotate (landscape)";
         sizeLabel.innerHTML = `Viewport: <code>${size.w} × ${size.h}</code> ${landscape ? "landscape" : "portrait"}`;
+        fitPhoneScale();
       }
 
       function loadPage() {
-        gameFrame.src = pageSelect.value;
+        gameFrame.src = withEmbed(pageSelect.value);
       }
 
       pageSelect.addEventListener("change", loadPage);
@@ -185,6 +231,8 @@
         landscape = !landscape;
         applySize();
       });
+
+      window.addEventListener("resize", fitPhoneScale);
 
       applySize();
     </script>

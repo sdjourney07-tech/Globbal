@@ -1,9 +1,16 @@
 const BOARD_COLS = 15;
-const BOARD_ROWS = 21;
+const BOARD_PREMIUM_ROWS = 21;
+/** Empty bonus-free rows removed from the scaled 21-row grid (closest to center). */
+const REMOVED_BOARD_ROWS = [8, 12];
+const BOARD_ROWS = BOARD_PREMIUM_ROWS - REMOVED_BOARD_ROWS.length;
 const RACK_SIZE = 16;
 const FULL_RACK_BONUS = Math.round((50 / 7) * RACK_SIZE);
 const START_SQUARE = {
   row: Math.floor((BOARD_ROWS - 1) / 2),
+  col: Math.floor((BOARD_COLS - 1) / 2)
+};
+const FULL_START_SQUARE = {
+  row: Math.floor((BOARD_PREMIUM_ROWS - 1) / 2),
   col: Math.floor((BOARD_COLS - 1) / 2)
 };
 
@@ -124,11 +131,11 @@ function premiumPriority(code) {
 /** Rows 3 and 19 (1-based) on left, center, and right columns. */
 const CUSTOM_QUADRUPLE_WORD_SQUARES = [
   { row: 2, col: 0 },
-  { row: 2, col: START_SQUARE.col },
+  { row: 2, col: FULL_START_SQUARE.col },
   { row: 2, col: BOARD_COLS - 1 },
-  { row: 18, col: 0 },
-  { row: 18, col: START_SQUARE.col },
-  { row: 18, col: BOARD_COLS - 1 }
+  { row: BOARD_PREMIUM_ROWS - 3, col: 0 },
+  { row: BOARD_PREMIUM_ROWS - 3, col: FULL_START_SQUARE.col },
+  { row: BOARD_PREMIUM_ROWS - 3, col: BOARD_COLS - 1 }
 ];
 
 function createPremiumLayout(boardRows, boardCols) {
@@ -155,7 +162,7 @@ function createPremiumLayout(boardRows, boardCols) {
     }
   });
 
-  layout[START_SQUARE.row][START_SQUARE.col] = "dw";
+  layout[FULL_START_SQUARE.row][FULL_START_SQUARE.col] = "dw";
 
   CUSTOM_QUADRUPLE_WORD_SQUARES.forEach(({ row, col }) => {
     if (row >= 0 && row < boardRows && col >= 0 && col < boardCols) {
@@ -163,16 +170,17 @@ function createPremiumLayout(boardRows, boardCols) {
     }
   });
 
-  return layout;
+  return layout.filter((_, rowIndex) => !REMOVED_BOARD_ROWS.includes(rowIndex));
 }
 
-const PREMIUM_LAYOUT = createPremiumLayout(BOARD_ROWS, BOARD_COLS);
+const PREMIUM_LAYOUT = createPremiumLayout(BOARD_PREMIUM_ROWS, BOARD_COLS);
 
 const boardEl = document.getElementById("board");
 const rackEl = document.getElementById("rack");
 const messageEl = document.getElementById("message");
 const turnInfoEl = document.getElementById("turnInfo");
 const bagCountEl = document.getElementById("bagCount");
+const pendingTurnScoreEl = document.getElementById("pendingTurnScore");
 const playableWordsCountEl = document.getElementById("playableWordsCount");
 const player1ScoreEl = document.getElementById("player1Score");
 const player2ScoreEl = document.getElementById("player2Score");
@@ -202,6 +210,7 @@ let draggingTurnTilePos = null;
 let rackShuffleAnimating = false;
 let rackShufflePendingAnimation = false;
 let shufflePrevRack = null;
+let shuffleSlotSources = null;
 let rackReturnAnimating = false;
 
 function initGame() {
@@ -503,9 +512,13 @@ function shuffleRackSlots(rack) {
     }
   }
   const tiles = occupied.map((slot) => rack[slot]);
+  const before = tiles.slice();
   const srcByTile = new Map(tiles.map((tile, j) => [tile, occupied[j]]));
 
   shuffleInPlace(tiles);
+  if (tiles.length > 1 && tiles.every((tile, index) => tile === before[index])) {
+    tiles.push(tiles.shift());
+  }
 
   occupied.forEach((slot) => {
     rack[slot] = null;
@@ -532,6 +545,7 @@ function render() {
   renderRack();
   renderScores();
   renderBagCount();
+  renderPendingTurnScore();
   turnInfoEl.textContent = `${players[currentPlayer].name} turn`;
   window.GlobbleBoardZoom?.syncFromTiles(turnPlacedTiles, boardEl);
 }
@@ -689,8 +703,102 @@ function renderBagCount() {
     return;
   }
   bagCountEl.textContent = `${bag.length} left in the bag`;
-  syncGameStatsButtonsVisibility();
   schedulePlayableWordCount();
+}
+
+function scorePlacedTilesOnly(turnPlacements) {
+  let total = 0;
+  turnPlacements.forEach(({ row, col, tile }) => {
+    if (!tile) {
+      return;
+    }
+    let letterValue = tile.value;
+    const premium = board[row][col].premium;
+    if (premium === "dl") {
+      letterValue *= 2;
+    } else if (premium === "tl") {
+      letterValue *= 3;
+    }
+    total += letterValue;
+  });
+  return total;
+}
+
+function computeTurnScore(words, turnPlacements, { applyQwPlating = false } = {}) {
+  const newKeys = new Set(turnPlacements.map(({ row, col }) => `${row},${col}`));
+  let total = 0;
+
+  words.forEach((word) => {
+    let wordBase = 0;
+    let wordMultiplier = 1;
+    const usesQw = word.cells.some(
+      ({ row, col }) => board[row][col].premium === "qw" && newKeys.has(`${row},${col}`)
+    );
+
+    word.cells.forEach(({ row, col, tile }) => {
+      if (!tile) {
+        return;
+      }
+      let letterValue = tile.value;
+      if (!tile.locked) {
+        const premium = board[row][col].premium;
+        if (premium === "dl") {
+          letterValue *= 2;
+        } else if (premium === "tl") {
+          letterValue *= 3;
+        } else if (premium === "dw") {
+          wordMultiplier *= 2;
+        } else if (premium === "tw") {
+          wordMultiplier *= 3;
+        } else if (premium === "qw") {
+          wordMultiplier *= 4;
+        }
+      }
+      wordBase += letterValue;
+    });
+
+    total += wordBase * wordMultiplier;
+
+    if (applyQwPlating && usesQw) {
+      word.cells.forEach(({ row, col }) => {
+        const boardTile = board[row][col].tile;
+        if (boardTile) {
+          boardTile.qwPlated = true;
+        }
+      });
+    }
+  });
+
+  if (turnPlacements.length === RACK_SIZE) {
+    total += FULL_RACK_BONUS;
+  }
+
+  return total;
+}
+
+function renderPendingTurnScore() {
+  if (!pendingTurnScoreEl) {
+    return;
+  }
+
+  pendingTurnScoreEl.classList.remove("is-pending", "is-valid");
+
+  if (turnPlacedTiles.length === 0) {
+    pendingTurnScoreEl.textContent = "";
+    return;
+  }
+
+  const validation = validateTurn();
+  if (validation.ok) {
+    pendingTurnScoreEl.textContent = String(
+      computeTurnScore(validation.words, turnPlacedTiles, { applyQwPlating: false })
+    );
+    pendingTurnScoreEl.classList.add("is-valid");
+    return;
+  }
+
+  pendingTurnScoreEl.textContent = String(scorePlacedTilesOnly(turnPlacedTiles));
+  pendingTurnScoreEl.classList.add("is-pending");
 }
 
 let playableWordCountJobId = 0;
@@ -711,7 +819,6 @@ function runPlayableWordCountOnMainThread(jobId) {
       return;
     }
     playableWordsCountEl.textContent = formatPlayableWordCount(count);
-    syncGameStatsButtonsVisibility();
   }, 0);
 }
 
@@ -731,7 +838,6 @@ function getPlayableWordCountWorker() {
         return;
       }
       playableWordsCountEl.textContent = formatPlayableWordCount(count);
-      syncGameStatsButtonsVisibility();
     };
     playableWordCountWorker.onerror = () => {
       const jobId = playableWordCountJobId;
@@ -750,15 +856,6 @@ function formatPlayableWordCount(count) {
     window.GlobblePlayableWords?.formatPlayableWordBucket?.(count) ??
     (typeof count === "number" && Number.isFinite(count) ? `${count} words possible` : "… words possible")
   );
-}
-
-function syncGameStatsButtonsVisibility() {
-  if (bagCountEl) {
-    bagCountEl.disabled = !bagCountEl.textContent;
-  }
-  if (playableWordsCountEl) {
-    playableWordsCountEl.disabled = !playableWordsCountEl.textContent;
-  }
 }
 
 function boardSnapshotForPlayableCount() {
@@ -797,7 +894,6 @@ function schedulePlayableWordCount() {
 
   if (!gameStarted) {
     playableWordsCountEl.textContent = "";
-    syncGameStatsButtonsVisibility();
     return;
   }
 
@@ -809,14 +905,11 @@ function schedulePlayableWordCount() {
   const rack = players[currentPlayer]?.rack ?? [];
   if (!rack.some(Boolean)) {
     playableWordsCountEl.textContent = formatPlayableWordCount(0);
-    syncGameStatsButtonsVisibility();
     return;
   }
 
   const jobId = ++playableWordCountJobId;
   playableWordsCountEl.textContent = formatPlayableWordCount(NaN);
-  syncGameStatsButtonsVisibility();
-
   const payload = {
     jobId,
     board: boardSnapshotForPlayableCount(),
@@ -996,14 +1089,15 @@ async function maybeRunShuffleAnimation() {
     return;
   }
 
-  const slotSources = shufflePrevRack
+  const slotSources = shuffleSlotSources || (shufflePrevRack
     ? window.GlobbleRackShuffle.computeSlotSources(
         shufflePrevRack,
         players[currentPlayer].rack,
         RACK_SIZE
       )
-    : null;
+    : null);
   shufflePrevRack = null;
+  shuffleSlotSources = null;
 
   rackShuffleAnimating = true;
   shuffleRackBtn.disabled = true;
@@ -1336,6 +1430,7 @@ async function removeTurnTile(row, col, preferredRackSlot = null, dropPoint = nu
 
   renderBoard();
   renderRack();
+  renderPendingTurnScore();
   window.GlobbleBoardZoom?.syncFromTiles(turnPlacedTiles, boardEl);
 
   const slotEl = rackEl.querySelector(`.rack-slot[data-rack-slot="${slot}"]`);
@@ -1376,6 +1471,7 @@ async function recallTurnTiles({ animate = true } = {}) {
     window.GlobbleBoardZoom?.reset(false);
     clearedCells.forEach(({ row, col }) => syncBoardCellEl(row, col));
     renderRack();
+    renderPendingTurnScore();
     return;
   }
 
@@ -1446,6 +1542,7 @@ async function recallTurnTiles({ animate = true } = {}) {
   if (recallTilesBtn) {
     recallTilesBtn.disabled = false;
   }
+  renderPendingTurnScore();
 }
 
 async function submitTurn() {
@@ -1596,55 +1693,7 @@ function validateTurn() {
 
 /** Score all words and gold-plate any word that includes a new tile on a QW square. */
 function scoreWordsAndMarkQwPlating(words, turnPlacements) {
-  const newKeys = new Set(turnPlacements.map(({ row, col }) => `${row},${col}`));
-  let total = 0;
-
-  words.forEach((word) => {
-    let wordBase = 0;
-    let wordMultiplier = 1;
-    let usesQw = word.cells.some(
-      ({ row, col }) => board[row][col].premium === "qw" && newKeys.has(`${row},${col}`)
-    );
-
-    word.cells.forEach(({ row, col, tile }) => {
-      if (!tile) {
-        return;
-      }
-      let letterValue = tile.value;
-      if (!tile.locked) {
-        const premium = board[row][col].premium;
-        if (premium === "dl") {
-          letterValue *= 2;
-        } else if (premium === "tl") {
-          letterValue *= 3;
-        } else if (premium === "dw") {
-          wordMultiplier *= 2;
-        } else if (premium === "tw") {
-          wordMultiplier *= 3;
-        } else if (premium === "qw") {
-          wordMultiplier *= 4;
-        }
-      }
-      wordBase += letterValue;
-    });
-
-    total += wordBase * wordMultiplier;
-
-    if (usesQw) {
-      word.cells.forEach(({ row, col }) => {
-        const boardTile = board[row][col].tile;
-        if (boardTile) {
-          boardTile.qwPlated = true;
-        }
-      });
-    }
-  });
-
-  if (turnPlacements.length === RACK_SIZE) {
-    total += FULL_RACK_BONUS;
-  }
-
-  return total;
+  return computeTurnScore(words, turnPlacements, { applyQwPlating: true });
 }
 
 function isContiguous(newTiles, axis) {
@@ -1790,7 +1839,7 @@ async function shuffleRack() {
     return;
   }
   shufflePrevRack = cloneRackSnapshot(players[currentPlayer].rack);
-  shuffleRackSlots(players[currentPlayer].rack);
+  shuffleSlotSources = shuffleRackSlots(players[currentPlayer].rack);
   selectedRackIndex = null;
   rackShufflePendingAnimation = true;
   renderRack();
@@ -1932,6 +1981,7 @@ function restorePracticeSnapshot(snapshot) {
   rackShuffleAnimating = false;
   rackShufflePendingAnimation = false;
   shufflePrevRack = null;
+  shuffleSlotSources = null;
   rackReturnAnimating = false;
   window.GlobblePendingWordGlow?.resetGlowState();
   setMessage(snapshot.messageText || "");

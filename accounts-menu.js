@@ -14,6 +14,7 @@
   const authUsername = document.getElementById("authUsername");
   const authEmail = document.getElementById("authEmail");
   const authPassword = document.getElementById("authPassword");
+  const authPasswordToggle = document.getElementById("authPasswordToggle");
   const authError = document.getElementById("authError");
   const loginBtn = document.getElementById("loginBtn");
   const registerBtn = document.getElementById("registerBtn");
@@ -31,10 +32,19 @@
   const gamesList = document.getElementById("gamesList");
   const gamesHint = document.getElementById("gamesHint");
   const gamesRefreshBtn = document.getElementById("gamesRefreshBtn");
-  const guestPracticeGrid = document.getElementById("guestPracticeGrid");
 
   function setAuthError(message) {
     if (authError) authError.textContent = message || "";
+  }
+
+  function setAuthPasswordVisible(visible) {
+    if (!authPassword || !authPasswordToggle) {
+      return;
+    }
+    authPassword.type = visible ? "text" : "password";
+    authPasswordToggle.textContent = visible ? "Hide" : "Show";
+    authPasswordToggle.setAttribute("aria-label", visible ? "Hide password" : "Show password");
+    authPasswordToggle.setAttribute("aria-pressed", visible ? "true" : "false");
   }
 
   function setForgotError(message) {
@@ -63,7 +73,6 @@
     if (authPanel) authPanel.hidden = signedIn;
     if (playPanel) playPanel.hidden = !signedIn;
     if (logoutBtn) logoutBtn.hidden = !signedIn;
-    if (guestPracticeGrid) guestPracticeGrid.hidden = signedIn;
     if (signedIn) {
       showForgot(false);
       refreshGames();
@@ -106,6 +115,7 @@
       );
       accounts.setSession(data.token, data.user);
       if (authPassword) authPassword.value = "";
+      setAuthPasswordVisible(false);
       if (authEmail) authEmail.value = "";
       renderAuthState(data.user);
     } catch (err) {
@@ -314,6 +324,10 @@
       setSearchError(err.message);
     }
   }
+
+  authPasswordToggle?.addEventListener("click", () => {
+    setAuthPasswordVisible(authPassword?.type === "password");
+  });
 
   loginBtn?.addEventListener("click", (event) => {
     event.preventDefault();

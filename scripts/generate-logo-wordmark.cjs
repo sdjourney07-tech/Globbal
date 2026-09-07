@@ -26,7 +26,6 @@ const HTML_TARGETS = [
   path.join(ROOT, "index.html"),
   path.join(ROOT, "logo-word-preview.html"),
   path.join(ROOT, "practice.html"),
-  path.join(ROOT, "practice-ancient.html"),
   path.join(ROOT, "game-online.html"),
 ];
 
@@ -192,6 +191,34 @@ function wordmarkLabel(word) {
   return word.charAt(0) + word.slice(1).toLowerCase();
 }
 
+function embeddedWordmarkSvgStyles(strokeWidth) {
+  return `.logo-wordmark-letters {
+  filter:
+    drop-shadow(0 -1px 0 rgba(255, 248, 234, 0.95))
+    drop-shadow(1px 2px 0 rgba(100, 0, 0, 0.95))
+    drop-shadow(2px 3px 0 rgba(65, 0, 0, 0.9))
+    drop-shadow(0 4px 10px rgba(40, 0, 0, 0.32));
+}
+.logo-letter {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+}
+.logo-letter-fill {
+  fill: #8b0000;
+  stroke: #4a0000;
+  stroke-width: ${strokeWidth};
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  paint-order: stroke fill;
+}
+.logo-wordmark-tm {
+  fill: #000;
+  font-family: "Segoe UI", Inter, system-ui, sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}`;
+}
+
 function buildEditableWordmarkSvg({ letters, padX, padY, strokeWidth, label = "Globbal" }) {
   const bbox = unionBBox(letters);
   const viewWidth = Math.ceil(bbox.width + padX * 2);
@@ -225,6 +252,9 @@ function buildEditableWordmarkSvg({ letters, padX, padY, strokeWidth, label = "G
   role="img"
   aria-label="${label}"
 >
+  <defs>
+    <style>${embeddedWordmarkSvgStyles(strokeWidth)}</style>
+  </defs>
   <g class="logo-wordmark-letters">
 ${letterGroups}
   </g>

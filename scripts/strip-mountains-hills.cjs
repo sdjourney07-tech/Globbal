@@ -106,15 +106,7 @@ stripPair({
   metaPath: path.join(ROOT, "place-metadata.json"),
   categoriesPath: path.join(ROOT, "dictionary-categories.json"),
   aliasSourcesPath: path.join(ROOT, "dictionary-alias-sources.js"),
-  label: "modern"
-});
-
-stripPair({
-  dictPath: path.join(ROOT, "dictionary-ancient.js"),
-  metaPath: path.join(ROOT, "place-metadata-ancient.json"),
-  categoriesPath: path.join(ROOT, "dictionary-categories-ancient.json"),
-  aliasSourcesPath: path.join(ROOT, "dictionary-alias-sources-ancient.js"),
-  label: "ancient"
+  label: "dictionary"
 });
 
 console.log("Done.");

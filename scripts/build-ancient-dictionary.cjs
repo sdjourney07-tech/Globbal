@@ -1,11 +1,12 @@
 /**
- * Builds the Ancient version dictionary bundle:
- *   dictionary-ancient.js
- *   place-metadata-ancient.json
- *   dictionary-categories-ancient.json
+ * Merges historical places into the main dictionary bundle:
+ *   dictionary.js
+ *   place-metadata.json
+ *   dictionary-categories.json
+ *   dictionary-alias-sources.js
  *
- * Ancient mode = modern dictionary plus historical countries, cities, regions,
- * kingdoms, and empires that no longer exist under those names.
+ * Adds historical countries, cities, regions, kingdoms, and empires that no
+ * longer exist under those names on top of the modern place dictionary.
  *
  * Run: node scripts/build-ancient-dictionary.cjs
  */
@@ -17,10 +18,10 @@ const MODERN_DICT_PATH = path.join(ROOT, "dictionary.js");
 const MODERN_META_PATH = path.join(ROOT, "place-metadata.json");
 const MODERN_CATEGORIES_PATH = path.join(ROOT, "dictionary-categories.json");
 const HISTORICAL_PATH = path.join(ROOT, "data", "historical-places.json");
-const ANCIENT_DICT_PATH = path.join(ROOT, "dictionary-ancient.js");
-const ANCIENT_META_PATH = path.join(ROOT, "place-metadata-ancient.json");
-const ANCIENT_CATEGORIES_PATH = path.join(ROOT, "dictionary-categories-ancient.json");
-const ANCIENT_ALIAS_SOURCES_PATH = path.join(ROOT, "dictionary-alias-sources-ancient.js");
+const DICT_PATH = path.join(ROOT, "dictionary.js");
+const META_PATH = path.join(ROOT, "place-metadata.json");
+const CATEGORIES_PATH = path.join(ROOT, "dictionary-categories.json");
+const ALIAS_SOURCES_PATH = path.join(ROOT, "dictionary-alias-sources.js");
 const { compactWord, displayWord, collectAliasSourceWords } = require(path.join(ROOT, "dictionary-keys.js"));
 
 function loadLockedWords(filePath) {
@@ -39,7 +40,7 @@ const modernCategories = JSON.parse(fs.readFileSync(MODERN_CATEGORIES_PATH, "utf
 const historicalRows = JSON.parse(fs.readFileSync(HISTORICAL_PATH, "utf8"));
 
 const modernCompacts = new Set(modernWords.map((word) => compactWord(word)));
-const ancientMeta = { ...modernMeta };
+const mergedMeta = { ...modernMeta };
 const addedWords = [];
 const categories = {
   ...modernCategories,
@@ -77,7 +78,7 @@ historicalRows.forEach((row) => {
     meta.country = row.country;
   }
 
-  ancientMeta[display] = meta;
+  mergedMeta[display] = meta;
   addedWords.push(display);
 
   if (row.kind === "historicalCountry") {
@@ -97,26 +98,26 @@ categories.historicalCities.sort((a, b) => a.localeCompare(b));
 categories.historicalRegions.sort((a, b) => a.localeCompare(b));
 categories.historicalKingdomsEmpires.sort((a, b) => a.localeCompare(b));
 
-const ancientWords = [...modernWords, ...addedWords].sort((a, b) => a.localeCompare(b));
+const mergedWords = [...modernWords, ...addedWords].sort((a, b) => a.localeCompare(b));
 
 fs.writeFileSync(
-  ANCIENT_DICT_PATH,
-  `const LOCKED_WORDS = ${JSON.stringify(ancientWords)};\n`,
+  DICT_PATH,
+  `const LOCKED_WORDS = ${JSON.stringify(mergedWords)};\n`,
   "utf8"
 );
-fs.writeFileSync(ANCIENT_META_PATH, `${JSON.stringify(ancientMeta)}\n`, "utf8");
-fs.writeFileSync(ANCIENT_CATEGORIES_PATH, `${JSON.stringify(categories, null, 2)}\n`, "utf8");
+fs.writeFileSync(META_PATH, `${JSON.stringify(mergedMeta)}\n`, "utf8");
+fs.writeFileSync(CATEGORIES_PATH, `${JSON.stringify(categories, null, 2)}\n`, "utf8");
 
-const aliasSources = collectAliasSourceWords(ancientWords, ancientMeta);
+const aliasSources = collectAliasSourceWords(mergedWords, mergedMeta);
 fs.writeFileSync(
-  ANCIENT_ALIAS_SOURCES_PATH,
+  ALIAS_SOURCES_PATH,
   `const DICTIONARY_ALIAS_SOURCE_WORDS = ${JSON.stringify(aliasSources)};\n`,
   "utf8"
 );
 
 process.stdout.write(
-  `Ancient dictionary: ${addedWords.length} historical places added.\n` +
-    `Total words: ${ancientWords.length} (modern ${modernWords.length}).\n` +
+  `Historical places merged into main dictionary: ${addedWords.length} added.\n` +
+    `Total words: ${mergedWords.length} (modern ${modernWords.length}).\n` +
     `  historicalCountries: ${categories.historicalCountries.length}\n` +
     `  historicalCities: ${categories.historicalCities.length}\n` +
     `  historicalRegions: ${categories.historicalRegions.length}\n` +

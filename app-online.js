@@ -70,6 +70,8 @@ let rackReturnAnimating = false;
 let rackRecallAnimating = false;
 let pendingTileReturn = null;
 let pendingEnterGameId = null;
+let reconnectTimer = null;
+let reconnectAttempts = 0;
 /** @type {string[]} */
 let matchUsernames = [];
 /** @type {object | null} */
@@ -114,10 +116,13 @@ function connectThen(afterOpen) {
   if (ws) {
     ws.close();
   }
-  ws = new WebSocket(wsUrl);
-  ws.__globbleAuthed = false;
+  const socket = new WebSocket(wsUrl);
+  ws = socket;
+  socket.__globbleAuthed = false;
   setConnStatus("Connecting…");
-  ws.addEventListener("open", () => {
+  socket.addEventListener("open", () => {
+    if (ws !== socket) return;
+    reconnectAttempts = 0;
     setConnStatus("Connected");
     const token = window.GlobbleAccounts?.getToken?.() || "";
     if (token) {
@@ -125,13 +130,35 @@ function connectThen(afterOpen) {
     }
     if (typeof afterOpen === "function") afterOpen();
   });
-  ws.addEventListener("close", () => {
+  socket.addEventListener("close", () => {
+    if (ws !== socket) return;
     setConnStatus("Disconnected");
+    scheduleReconnect();
   });
-  ws.addEventListener("error", () => {
+  socket.addEventListener("error", () => {
+    if (ws !== socket) return;
     setConnStatus("Error");
   });
-  ws.addEventListener("message", onWsMessage);
+  socket.addEventListener("message", onWsMessage);
+}
+
+function scheduleReconnect() {
+  if (reconnectTimer || !window.GlobbleAccounts?.getToken?.()) {
+    return;
+  }
+  const saved = loadPersistSession();
+  const gameId = pendingEnterGameId || saved?.gameId;
+  if (!gameId) {
+    return;
+  }
+  const delay = Math.min(1000 * (2 ** reconnectAttempts), 10000);
+  reconnectAttempts += 1;
+  setConnStatus(`Reconnecting in ${Math.ceil(delay / 1000)}s…`);
+  reconnectTimer = window.setTimeout(() => {
+    reconnectTimer = null;
+    pendingEnterGameId = gameId;
+    connectThen(() => tryEnterPendingGame());
+  }, delay);
 }
 
 function tryEnterPendingGame() {

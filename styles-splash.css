@@ -98,6 +98,15 @@
   --brand-y-nudge: 10cqh;
   --map-bottom: calc(var(--map-center-y) + var(--map-height) / 2);
   --map-radius: clamp(12px, 3.6cqw, 20px);
+  /* Bottom of compass rose on map art (~70% down from map top) */
+  --map-compass-bottom: 0.7;
+  --compass-bottom: calc(var(--map-top) + var(--map-height) * var(--map-compass-bottom));
+  /* Explore button: map-local Y (0 = map top, 1 = map bottom), lifted from midpoint */
+  --map-explore-y-lift: 0.05;
+  --map-explore-y: calc(
+    (var(--map-compass-bottom) + 1) / 2 - var(--map-explore-y-lift)
+  );
+  --explore-anchor-y: calc(var(--map-top) + var(--map-height) * var(--map-explore-y));
 }
 
 .splash-screen.is-exiting {
@@ -202,8 +211,7 @@
   }
 
   .splash-actions {
-    top: var(--map-bottom);
-    bottom: var(--splash-gutter);
+    top: var(--explore-anchor-y);
   }
 }
 
@@ -276,21 +284,22 @@ body.splash-compass-active .splash-screen {
 .splash-actions {
   position: absolute;
   z-index: 1;
-  top: var(--map-bottom);
-  bottom: max(var(--splash-gutter), env(safe-area-inset-bottom, 0px));
-  left: max(var(--splash-gutter), env(safe-area-inset-left, 0px));
-  right: max(var(--splash-gutter), env(safe-area-inset-right, 0px));
+  top: var(--explore-anchor-y);
+  left: 50%;
+  right: auto;
+  bottom: auto;
+  width: min(var(--map-width), 340px, calc(100cqw - 2 * var(--splash-gutter)));
+  max-width: var(--compose-max);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
-  margin-inline: auto;
+  margin: 0;
   padding: 0 0.5rem;
   text-align: center;
-  width: min(100%, 340px);
-  max-width: var(--compose-max);
-  animation: splash-content-in 900ms cubic-bezier(0.22, 1, 0.36, 1) 120ms both;
+  transform: translate(-50%, -50%);
+  animation: splash-actions-in 900ms cubic-bezier(0.22, 1, 0.36, 1) 120ms both;
 }
 
 .splash-brand .logo-wordmark-wrap {
@@ -409,6 +418,31 @@ body.splash-compass-active .splash-screen {
   letter-spacing: 0.02em;
 }
 
+.splash-epigraph {
+  position: absolute;
+  z-index: 1;
+  left: max(var(--splash-gutter), env(safe-area-inset-left, 0px));
+  right: max(var(--splash-gutter), env(safe-area-inset-right, 0px));
+  bottom: max(0.85rem, env(safe-area-inset-bottom, 0px));
+  margin: 0;
+  text-align: center;
+  font-family: Georgia, "Times New Roman", Times, serif;
+  font-size: clamp(1rem, 4.8cqw, 1.28rem);
+  font-style: italic;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: 0.02em;
+  color: #2f2016;
+  text-shadow: 0 1px 0 rgba(255, 248, 235, 0.35);
+  pointer-events: none;
+  animation: splash-content-in 900ms cubic-bezier(0.22, 1, 0.36, 1) 200ms both;
+}
+
+.splash-epigraph-credit {
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
 @keyframes splash-content-in {
   from {
     opacity: 0;
@@ -420,9 +454,21 @@ body.splash-compass-active .splash-screen {
   }
 }
 
+@keyframes splash-actions-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 18px)) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .splash-brand,
-  .splash-actions {
+  .splash-actions,
+  .splash-epigraph {
     animation: none;
   }
 
@@ -470,8 +516,8 @@ body.splash-compass-active .splash-screen {
   }
 
   .splash-actions {
-    left: 0;
-    right: 0;
-    width: min(100% - 2 * var(--splash-gutter), 340px);
+    left: 50%;
+    right: auto;
+    width: min(var(--map-width), 340px, calc(100% - 2 * var(--splash-gutter)));
   }
 }

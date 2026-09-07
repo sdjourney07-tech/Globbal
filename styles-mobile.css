@@ -13,14 +13,18 @@
     + var(--rack-gap)
     + 2 * var(--rack-pad)
   );
-  --score-strip-height: 26px;
-  --mobile-action-band: 1.7rem;
+  --score-strip-height: 22px;
+  --action-rail-height: 1.4rem;
+  --mobile-action-band: var(--action-rail-height);
+  --game-stats-label-height: clamp(18px, 4vw, 24px);
   --controls-rack-band: calc(
-    var(--score-strip-height) + var(--mobile-action-band) + 2 * var(--rack-pad) + var(--play-gap) + 4px
+    var(--score-strip-height) + var(--mobile-action-band) + 2 * var(--rack-pad) + var(--play-gap) + 2px
   );
   --play-wordmark-height: clamp(1.2rem, 4vmin, 2rem);
+  --board-aspect-rows: 19;
   /* No ad/brand band on phones — use the full screen for play */
-  --play-brand-band: 0px;
+  /* Wordmark band at top — space freed by compacting the board */
+  --play-brand-band: calc(var(--play-wordmark-height) + max(4px, env(safe-area-inset-top, 0px)) + 4px);
   --play-layout-stack-pad: 6px;
   --play-ad-clearance: 0px;
   --mobile-top-bar: 0px;
@@ -29,7 +33,7 @@
 }
 
 .play-layout:has(.game-stats-tray) {
-  --game-stats-tray-band: clamp(13px, 3.1vw, 16px);
+  --game-stats-tray-band: calc(var(--game-stats-label-height) + 8px);
 }
 
 .gameplay-body {
@@ -86,7 +90,7 @@
         - var(--play-brand-band)
         - var(--game-stats-tray-band)
         - var(--play-layout-stack-pad)
-      ) * 15 / 21
+      ) * 15 / var(--board-aspect-rows, 19)
     )
   );
 }
@@ -96,7 +100,12 @@
 }
 
 .play-layout > .play-brand {
-  display: none;
+  display: flex;
+  flex-shrink: 0;
+  width: min(100%, var(--play-column));
+  align-self: center;
+  padding-top: max(4px, env(safe-area-inset-top, 0px));
+  padding-bottom: 2px;
 }
 
 .play-layout > .play-focus {
@@ -161,8 +170,11 @@
   height: auto;
 }
 
-.play-brand .play-ad-banner {
-  width: min(var(--play-ad-banner-max-width), 100%, calc(var(--play-column) * 0.82));
+.play-brand .logo-wordmark {
+  width: min(100%, calc(var(--play-column, 100vw) * 0.88));
+  max-height: var(--play-wordmark-height);
+  height: auto;
+  object-fit: contain;
 }
 
 .play-status {
@@ -199,14 +211,37 @@
   border-radius: 12px;
 }
 
-.game-stats-tray .game-stats-btn.score-cell {
-  min-height: calc(var(--score-strip-height) - 24px);
+.game-stats-tray .game-stats-label.score-cell {
+  min-height: var(--game-stats-label-height);
   padding: 0 6px;
-  font-size: 0.6rem;
-  line-height: 1.1;
+  font-size: 0.64rem;
+  line-height: 1.15;
   font-weight: 400;
   border-radius: 5px;
-  transform: scale(0.94);
+  transform: none;
+  background-color: var(--tile);
+  background-image: var(--tile-bg-image);
+  color: var(--tile-text);
+  border: 1px solid var(--tile-border-dark);
+  border-top-color: var(--tile-border-light);
+  border-left-color: var(--tile-border-mid);
+}
+
+.game-stats-tray .game-stats-label-score.score-cell {
+  flex: 0 0 auto;
+  width: 5.5ch;
+  min-width: 5.5ch;
+  max-width: 5.5ch;
+  min-height: var(--game-stats-label-height);
+  padding: 0 2px;
+  font-size: 0.6rem;
+  line-height: 1.15;
+  font-weight: 700;
+  text-align: center;
+}
+
+.game-stats-tray .game-stats-label-score.score-cell:empty {
+  opacity: 1;
 }
 
 .game-stats-buttons {
@@ -219,7 +254,7 @@
   flex: 1 1 auto;
   width: min(100%, var(--play-column));
   max-width: 100%;
-  aspect-ratio: 15 / 21;
+  aspect-ratio: 15 / var(--board-aspect-rows, 19);
   min-height: 0;
   max-height: 100%;
   align-items: center;
@@ -285,11 +320,11 @@
 
 .game-action-rail button {
   grid-column: auto !important;
-  min-height: 1.7rem;
-  height: 1.7rem;
-  padding: 2px 2px;
-  font-size: 0.58rem;
-  line-height: 1.1;
+  min-height: var(--action-rail-height);
+  height: var(--action-rail-height);
+  padding: 1px 2px;
+  font-size: 0.54rem;
+  line-height: 1.05;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -408,7 +443,8 @@ body.dictionary-page .dictionary-topbar {
 /* Short landscape phones */
 @media (orientation: landscape) and (max-height: 500px) {
   :root {
-    --mobile-action-band: 2.85rem;
+    --mobile-action-band: 2.45rem;
+    --action-rail-height: 1.4rem;
     --controls-rack-band: calc(
       var(--score-strip-height) + var(--mobile-action-band) + 2 * var(--rack-pad) + var(--play-gap)
     );
@@ -417,7 +453,7 @@ body.dictionary-page .dictionary-topbar {
       + var(--rack-gap)
       + 2 * var(--rack-pad)
     );
-    --score-strip-height: 34px;
+    --score-strip-height: 28px;
     --play-gap: 3px;
   }
 

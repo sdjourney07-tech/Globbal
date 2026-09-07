@@ -198,6 +198,79 @@ function createAccountsHttp(store) {
         return true;
       }
 
+      if (urlPath === "/api/me/profile" && req.method === "GET") {
+        const { user } = await requireUser(req);
+        const profile = await store.getUserProfile(user._id);
+        if (!profile) {
+          sendJson(res, 404, { error: "Account not found." });
+          return true;
+        }
+        sendJson(res, 200, profile);
+        return true;
+      }
+
+      if (urlPath === "/api/me/profile" && req.method === "PATCH") {
+        const { user } = await requireUser(req);
+        const body = await readJsonBody(req);
+        const patch = {};
+        if (Object.prototype.hasOwnProperty.call(body, "displayName")) {
+          patch.displayName = String(body.displayName ?? "");
+        }
+        if (Object.prototype.hasOwnProperty.call(body, "email")) {
+          patch.email = String(body.email ?? "").trim();
+        }
+        if (!Object.keys(patch).length) {
+          sendJson(res, 400, { error: "Nothing to update." });
+          return true;
+        }
+        try {
+          const updated = await store.updateUserProfile(user._id, patch);
+          sendJson(res, 200, { user: updated });
+        } catch (err) {
+          if (err.code === "BAD_EMAIL") {
+            sendJson(res, 400, { error: err.message });
+            return true;
+          }
+          if (err.code === "BAD_DISPLAY_NAME") {
+            sendJson(res, 400, { error: err.message });
+            return true;
+          }
+          throw err;
+        }
+        return true;
+      }
+
+      if (urlPath === "/api/me/profile/update" && req.method === "POST") {
+        const { user } = await requireUser(req);
+        const body = await readJsonBody(req);
+        const patch = {};
+        if (Object.prototype.hasOwnProperty.call(body, "displayName")) {
+          patch.displayName = String(body.displayName ?? "");
+        }
+        if (Object.prototype.hasOwnProperty.call(body, "email")) {
+          patch.email = String(body.email ?? "").trim();
+        }
+        if (!Object.keys(patch).length) {
+          sendJson(res, 400, { error: "Nothing to update." });
+          return true;
+        }
+        try {
+          const updated = await store.updateUserProfile(user._id, patch);
+          sendJson(res, 200, { user: updated });
+        } catch (err) {
+          if (err.code === "BAD_EMAIL") {
+            sendJson(res, 400, { error: err.message });
+            return true;
+          }
+          if (err.code === "BAD_DISPLAY_NAME") {
+            sendJson(res, 400, { error: err.message });
+            return true;
+          }
+          throw err;
+        }
+        return true;
+      }
+
       if (urlPath === "/api/users/search" && req.method === "GET") {
         const { user } = await requireUser(req);
         const host = req.headers.host || "localhost";

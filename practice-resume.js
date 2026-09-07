@@ -2,7 +2,7 @@
  * Saves local practice game state when opening the dictionary, restores on return.
  */
 (function practiceResume() {
-  const STORAGE_VERSION = 1;
+  const STORAGE_VERSION = 2;
 
   function storageKey() {
     return `globble-practice-resume:${window.location.pathname}`;

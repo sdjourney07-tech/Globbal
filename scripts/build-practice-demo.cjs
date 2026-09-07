@@ -4,7 +4,9 @@ const fs = require("fs");
 const path = require("path");
 const { buildPlayableDictionary } = require("../dictionary-keys.js");
 
-const BOARD_ROWS = 21;
+const BOARD_PREMIUM_ROWS = 21;
+const REMOVED_BOARD_ROWS = [8, 12];
+const BOARD_ROWS = BOARD_PREMIUM_ROWS - REMOVED_BOARD_ROWS.length;
 const BOARD_COLS = 15;
 const START_SQUARE = {
   row: Math.floor((BOARD_ROWS - 1) / 2),

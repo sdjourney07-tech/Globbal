@@ -577,33 +577,8 @@
     showPlaceTipNear(words, cellEl.getBoundingClientRect(), cellEl);
   }
 
-  function bindLockedCellPlaceTip(cellEl, board, row, col) {
-    cellEl.addEventListener("mouseenter", () => {
-      clearHideTipTimer();
-      showPlaceTipForCell(cellEl, board, row, col);
-    });
-    cellEl.addEventListener("mouseleave", (event) => {
-      const next = event.relatedTarget;
-      if (tipEl && !tipEl.hidden && next instanceof Node && tipEl.contains(next)) {
-        return;
-      }
-      scheduleHidePlaceTip();
-    });
-    cellEl.addEventListener("focus", () => {
-      clearHideTipTimer();
-      showPlaceTipForCell(cellEl, board, row, col);
-    });
-    cellEl.addEventListener("blur", () => {
-      scheduleHidePlaceTip();
-    });
-    cellEl.addEventListener("click", () => {
-      if (activeTipCell === cellEl && tipEl && !tipEl.hidden) {
-        hidePlaceTip();
-        return;
-      }
-      clearHideTipTimer();
-      showPlaceTipForCell(cellEl, board, row, col);
-    });
+  function bindLockedCellPlaceTip(_cellEl, _board, _row, _col) {
+    /* Hover tooltips disabled — place info still used for score messages and Wikipedia reveal. */
   }
 
   window.GlobblePlaceInfo = {

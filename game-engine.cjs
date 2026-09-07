@@ -6,11 +6,17 @@ const { moveRackSlots } = require("./rack-move.cjs");
 const path = require("path");
 
 const BOARD_COLS = 15;
-const BOARD_ROWS = 21;
+const BOARD_PREMIUM_ROWS = 21;
+const REMOVED_BOARD_ROWS = [8, 12];
+const BOARD_ROWS = BOARD_PREMIUM_ROWS - REMOVED_BOARD_ROWS.length;
 const RACK_SIZE = 16;
 const FULL_RACK_BONUS = Math.round((50 / 7) * RACK_SIZE);
 const START_SQUARE = {
   row: Math.floor((BOARD_ROWS - 1) / 2),
+  col: Math.floor((BOARD_COLS - 1) / 2)
+};
+const FULL_START_SQUARE = {
+  row: Math.floor((BOARD_PREMIUM_ROWS - 1) / 2),
   col: Math.floor((BOARD_COLS - 1) / 2)
 };
 
@@ -115,11 +121,11 @@ function premiumPriority(code) {
 
 const CUSTOM_QUADRUPLE_WORD_SQUARES = [
   { row: 2, col: 0 },
-  { row: 2, col: START_SQUARE.col },
+  { row: 2, col: FULL_START_SQUARE.col },
   { row: 2, col: BOARD_COLS - 1 },
-  { row: 18, col: 0 },
-  { row: 18, col: START_SQUARE.col },
-  { row: 18, col: BOARD_COLS - 1 }
+  { row: BOARD_PREMIUM_ROWS - 3, col: 0 },
+  { row: BOARD_PREMIUM_ROWS - 3, col: FULL_START_SQUARE.col },
+  { row: BOARD_PREMIUM_ROWS - 3, col: BOARD_COLS - 1 }
 ];
 
 function createPremiumLayout(boardRows, boardCols) {
@@ -146,7 +152,7 @@ function createPremiumLayout(boardRows, boardCols) {
     }
   });
 
-  layout[START_SQUARE.row][START_SQUARE.col] = "dw";
+  layout[FULL_START_SQUARE.row][FULL_START_SQUARE.col] = "dw";
 
   CUSTOM_QUADRUPLE_WORD_SQUARES.forEach(({ row, col }) => {
     if (row >= 0 && row < boardRows && col >= 0 && col < boardCols) {
@@ -154,15 +160,14 @@ function createPremiumLayout(boardRows, boardCols) {
     }
   });
 
-  return layout;
+  return layout.filter((_, rowIndex) => !REMOVED_BOARD_ROWS.includes(rowIndex));
 }
 
-const PREMIUM_LAYOUT = createPremiumLayout(BOARD_ROWS, BOARD_COLS);
+const PREMIUM_LAYOUT = createPremiumLayout(BOARD_PREMIUM_ROWS, BOARD_COLS);
 
 function loadDictionary() {
-  // Match the main-menu "full" browse set (modern places + historical).
-  const dictPath = path.join(__dirname, "dictionary-ancient.js");
-  const aliasPath = path.join(__dirname, "dictionary-alias-sources-ancient.js");
+  const dictPath = path.join(__dirname, "dictionary.js");
+  const aliasPath = path.join(__dirname, "dictionary-alias-sources.js");
   const src = fs.readFileSync(dictPath, "utf8");
   const LOCKED_WORDS = new Function(`${src}; return LOCKED_WORDS;`)();
   // Use precomputed alias sources instead of place-metadata.json (~88MB).
@@ -240,7 +245,11 @@ function shuffleRackSlots(rack) {
     }
   }
   const tiles = occupied.map((slot) => rack[slot]);
+  const before = tiles.slice();
   shuffleInPlace(tiles);
+  if (tiles.length > 1 && tiles.every((tile, index) => tile === before[index])) {
+    tiles.push(tiles.shift());
+  }
   occupied.forEach((slot) => {
     rack[slot] = null;
   });

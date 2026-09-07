@@ -1,0 +1,74 @@
+/* Fit game pages to the mobile-preview iframe (avoid 100dvh using the outer browser). */
+html.is-preview-embed,
+html.is-preview-embed body {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+html.is-preview-embed .gameplay-body,
+html.is-preview-embed .play-stage,
+html.is-preview-embed .app-gameplay,
+html.is-preview-embed .splash-body,
+html.is-preview-embed .landing-body,
+html.is-preview-embed .splash-screen,
+html.is-preview-embed .landing-shell {
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+}
+
+html.is-preview-embed .play-stage {
+  height: 100%;
+  max-height: 100%;
+}
+
+html.is-preview-embed .play-layout {
+  container-type: size;
+  height: 100%;
+  max-height: 100%;
+  align-items: stretch;
+  /* Size from iframe height (cqh), not width — plain % in vars resolves as width. */
+  --play-column: min(
+    100cqw,
+    calc(
+      (
+        100cqh
+        - env(safe-area-inset-top, 0px)
+        - env(safe-area-inset-bottom, 0px)
+        - var(--controls-rack-band)
+        - var(--rack-band)
+        - var(--play-brand-band)
+        - var(--game-stats-tray-band)
+        - var(--play-layout-stack-pad)
+      ) * 15 / var(--board-aspect-rows, 19)
+    )
+  );
+  --play-width: var(--play-column);
+}
+
+html.is-preview-embed .splash-screen {
+  --splash-below-map: calc(
+    100% - var(--map-bottom) - max(var(--splash-gutter), env(safe-area-inset-bottom, 0px))
+  );
+}
+
+@supports not (width: 100cqh) {
+  html.is-preview-embed .play-layout {
+    --play-column: min(
+      100vw,
+      calc(
+        (
+          100dvh
+          - env(safe-area-inset-top, 0px)
+          - env(safe-area-inset-bottom, 0px)
+          - var(--controls-rack-band)
+          - var(--rack-band)
+          - var(--play-brand-band)
+          - var(--game-stats-tray-band)
+          - var(--play-layout-stack-pad)
+        ) * 15 / var(--board-aspect-rows, 19)
+      )
+    );
+  }
+}

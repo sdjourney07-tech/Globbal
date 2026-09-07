@@ -39,16 +39,87 @@
   }
 
   const OF_PREFIXED_PATTERNS = ["BAY OF ", "GULF OF ", "BIGHT OF ", "SEA OF ", "KINGDOM OF "];
-  const PLACE_ALIAS_SUFFIXES = [
-    " RIVER",
-    " SEA",
-    " OCEAN",
-    " BAY",
-    " GULF",
-    " BIGHT",
-    " EMPIRE",
-    " KINGDOM"
+  /** Longest first so multi-word feature names strip correctly (e.g. MOUNTAIN before MOUNT). */
+  const GEOGRAPHIC_FEATURE_PREFIXES = [
+    "MOUNTAIN RANGE ",
+    "MOUNTAINS ",
+    "MOUNTAIN ",
+    "MOUNT ",
+    "LAKE ",
+    "CAPE "
   ];
+  /** Longest first so multi-word feature names strip correctly (e.g. MOUNTAIN RANGE before MOUNTAIN). */
+  const GEOGRAPHIC_FEATURE_SUFFIXES = [
+    " MOUNTAIN RANGE",
+    " BARRIER REEF",
+    " ARCHIPELAGO",
+    " PENINSULA",
+    " MOUNTAINS",
+    " MOUNTAIN",
+    " ISLANDS",
+    " ISLAND",
+    " REEFS",
+    " REEF",
+    " VALLEY",
+    " PLAINS",
+    " PLAIN",
+    " LAGOON",
+    " ESTUARY",
+    " OCEAN",
+    " RIVER",
+    " DELTA",
+    " BASIN",
+    " CANAL",
+    " STRAIT",
+    " CHANNEL",
+    " BIGHT",
+    " KINGDOM",
+    " EMPIRE",
+    " VOLCANO",
+    " MOUNT",
+    " HILLS",
+    " HILL",
+    " RIDGE",
+    " COAST",
+    " SOUND",
+    " PEAK",
+    " ATOLL",
+    " GULF",
+    " LAKE",
+    " PASS",
+    " CAPE",
+    " BAY",
+    " SEA"
+  ];
+
+  const GENERIC_GEOGRAPHIC_TERM_COMPACTS = (() => {
+    const terms = new Set();
+    GEOGRAPHIC_FEATURE_SUFFIXES.forEach((suffix) => {
+      terms.add(compactWord(suffix.trim()));
+    });
+    GEOGRAPHIC_FEATURE_PREFIXES.forEach((prefix) => {
+      terms.add(compactWord(prefix.trim()));
+    });
+    return terms;
+  })();
+
+  function isGenericGeographicTerm(word) {
+    return GENERIC_GEOGRAPHIC_TERM_COMPACTS.has(compactWord(word));
+  }
+
+  function hasGeographicAliasPattern(word) {
+    const normalized = displayWord(word);
+    if (!normalized) {
+      return false;
+    }
+    if (OF_PREFIXED_PATTERNS.some((prefix) => normalized.startsWith(prefix))) {
+      return true;
+    }
+    if (GEOGRAPHIC_FEATURE_PREFIXES.some((prefix) => normalized.startsWith(prefix))) {
+      return true;
+    }
+    return GEOGRAPHIC_FEATURE_SUFFIXES.some((suffix) => normalized.endsWith(suffix));
+  }
 
   function placeShortDisplays(word) {
     const normalized = displayWord(word);
@@ -58,6 +129,9 @@
     const add = (value) => {
       const short = displayWord(value);
       if (!short || short === normalized || seen.has(short)) {
+        return;
+      }
+      if (isGenericGeographicTerm(short)) {
         return;
       }
       seen.add(short);
@@ -70,7 +144,13 @@
       }
     }
 
-    for (const suffix of PLACE_ALIAS_SUFFIXES) {
+    for (const prefix of GEOGRAPHIC_FEATURE_PREFIXES) {
+      if (normalized.startsWith(prefix)) {
+        add(normalized.slice(prefix.length));
+      }
+    }
+
+    for (const suffix of GEOGRAPHIC_FEATURE_SUFFIXES) {
       if (normalized.endsWith(suffix)) {
         add(normalized.slice(0, -suffix.length));
       }
@@ -116,15 +196,11 @@
   }
 
   function shouldApplyPlaceAliases(word, meta) {
+    if (hasGeographicAliasPattern(word)) {
+      return true;
+    }
     if (!meta) {
       return false;
-    }
-    if (meta.kind === "river" || meta.river) {
-      return true;
-    }
-    const waterKind = meta.kind || meta.waterBody?.type;
-    if (["ocean", "sea", "bay", "gulf", "bight"].includes(waterKind)) {
-      return true;
     }
     if (meta.kind === "historicalEmpire" || meta.kind === "historicalKingdom") {
       return true;
@@ -189,6 +265,8 @@
     containsDigit,
     isPlayableDictionaryWord,
     placeShortDisplays,
+    isGenericGeographicTerm,
+    hasGeographicAliasPattern,
     shouldApplyPlaceAliases,
     collectAliasSourceWords,
     ofPrefixedShortDisplay,

@@ -68,6 +68,21 @@ function normalizeOptionalEmail(email) {
   return value;
 }
 
+function normalizeDisplayName(name) {
+  return String(name || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .slice(0, 40);
+}
+
+function isValidDisplayName(name) {
+  const value = normalizeDisplayName(name);
+  if (!value) {
+    return true;
+  }
+  return value.length >= 1 && value.length <= 40;
+}
+
 async function hashPassword(password) {
   const salt = crypto.randomBytes(16);
   const derived = await scrypt(String(password), salt, 64);
@@ -389,6 +404,48 @@ function createFileBackend() {
       game.currentPlayer = snapshot?.currentPlayer === 1 ? 1 : 0;
       game.updatedAt = nowIso();
       writeFileData(data);
+    },
+    async getUserProfile(userId) {
+      const data = readFileData();
+      const user = data.users.find((u) => u._id === userId);
+      if (!user) {
+        return null;
+      }
+      return {
+        user: profileUser(user),
+        ...buildUserProfile(userId, data.games)
+      };
+    },
+    async updateUserProfile(userId, { displayName, email }) {
+      const data = readFileData();
+      const user = data.users.find((u) => u._id === userId);
+      if (!user) {
+        const err = new Error("Account not found.");
+        err.code = "NOT_FOUND";
+        throw err;
+      }
+      if (displayName !== undefined) {
+        if (!isValidDisplayName(displayName)) {
+          const err = new Error("Display name must be 1–40 characters.");
+          err.code = "BAD_DISPLAY_NAME";
+          throw err;
+        }
+        const next = normalizeDisplayName(displayName);
+        user.displayName = next || null;
+      }
+      if (email !== undefined) {
+        const raw = String(email || "").trim();
+        const emailKey = raw ? normalizeOptionalEmail(raw) : "";
+        if (emailKey && data.users.some((u) => u._id !== userId && u.emailKey === emailKey)) {
+          const err = new Error("That email is already linked to an account.");
+          err.code = "EMAIL_TAKEN";
+          throw err;
+        }
+        user.email = emailKey || null;
+        user.emailKey = emailKey || null;
+      }
+      writeFileData(data);
+      return profileUser(user);
     }
   };
 }
@@ -728,6 +785,75 @@ async function createMongoBackend(uri) {
           }
         }
       );
+    },
+    async getUserProfile(userId) {
+      const id = oid(userId);
+      if (!id) {
+        return null;
+      }
+      const userDoc = await users.findOne({ _id: id });
+      if (!userDoc) {
+        return null;
+      }
+      const rows = await games.find({ playerIds: id, status: "finished" }).toArray();
+      const normalizedGames = rows.map((game) => ({
+        ...game,
+        _id: String(game._id),
+        playerIds: game.playerIds.map(String),
+        winnerUserId: game.winnerUserId ? String(game.winnerUserId) : null
+      }));
+      return {
+        user: profileUser({
+          ...userDoc,
+          _id: String(userDoc._id)
+        }),
+        ...buildUserProfile(userId, normalizedGames)
+      };
+    },
+    async updateUserProfile(userId, { displayName, email }) {
+      const id = oid(userId);
+      if (!id) {
+        const err = new Error("Account not found.");
+        err.code = "NOT_FOUND";
+        throw err;
+      }
+      const userDoc = await users.findOne({ _id: id });
+      if (!userDoc) {
+        const err = new Error("Account not found.");
+        err.code = "NOT_FOUND";
+        throw err;
+      }
+      const updates = {};
+      if (displayName !== undefined) {
+        if (!isValidDisplayName(displayName)) {
+          const err = new Error("Display name must be 1–40 characters.");
+          err.code = "BAD_DISPLAY_NAME";
+          throw err;
+        }
+        const next = normalizeDisplayName(displayName);
+        updates.displayName = next || null;
+      }
+      if (email !== undefined) {
+        const raw = String(email || "").trim();
+        updates.emailKey = raw ? normalizeOptionalEmail(raw) : null;
+        updates.email = updates.emailKey;
+      }
+      if (!Object.keys(updates).length) {
+        return profileUser({ ...userDoc, _id: String(userDoc._id) });
+      }
+      try {
+        await users.updateOne({ _id: id }, { $set: updates });
+      } catch (err) {
+        const code = duplicateKeyCode(err);
+        if (code === "EMAIL_TAKEN") {
+          const e = new Error("That email is already linked to an account.");
+          e.code = "EMAIL_TAKEN";
+          throw e;
+        }
+        throw err;
+      }
+      const updated = await users.findOne({ _id: id });
+      return profileUser({ ...updated, _id: String(updated._id) });
     }
   };
 }
@@ -735,11 +861,79 @@ async function createMongoBackend(uri) {
 function publicUser(user) {
   if (!user) return null;
   const email = user.emailKey || user.email || null;
+  const displayName = user.displayName ? normalizeDisplayName(user.displayName) : null;
   return {
     _id: String(user._id),
     username: user.username || user.usernameKey,
+    displayName: displayName || null,
     hasEmail: Boolean(email),
     createdAt: user.createdAt || null
+  };
+}
+
+function profileUser(user) {
+  if (!user) return null;
+  const email = user.emailKey || user.email || null;
+  return {
+    ...publicUser(user),
+    email: email || null
+  };
+}
+
+function buildUserProfile(userId, games) {
+  const uid = String(userId);
+  const finished = (games || []).filter(
+    (game) => game.status === "finished" && game.playerIds.map(String).includes(uid)
+  );
+  const gamesPlayed = finished.length;
+  const gamesWon = finished.filter((game) => String(game.winnerUserId) === uid).length;
+  const opponentMap = new Map();
+
+  finished.forEach((game) => {
+    const playerIds = game.playerIds.map(String);
+    const usernames = Array.isArray(game.usernames) ? game.usernames : [];
+    const myIndex = playerIds.indexOf(uid);
+    if (myIndex < 0) {
+      return;
+    }
+    const oppIndex = myIndex === 0 ? 1 : 0;
+    const oppId = playerIds[oppIndex];
+    if (!oppId) {
+      return;
+    }
+    const existing = opponentMap.get(oppId) || {
+      userId: oppId,
+      username: usernames[oppIndex] || "Opponent",
+      gamesPlayed: 0,
+      winsAgainst: 0,
+      lossesAgainst: 0,
+      lastPlayedAt: null
+    };
+    existing.gamesPlayed += 1;
+    if (String(game.winnerUserId) === uid) {
+      existing.winsAgainst += 1;
+    } else if (game.winnerUserId) {
+      existing.lossesAgainst += 1;
+    }
+    const playedAt = game.finishedAt || game.updatedAt || game.startedAt || game.createdAt;
+    if (
+      playedAt &&
+      (!existing.lastPlayedAt || Date.parse(playedAt) > Date.parse(existing.lastPlayedAt))
+    ) {
+      existing.lastPlayedAt = playedAt;
+    }
+    opponentMap.set(oppId, existing);
+  });
+
+  const pastOpponents = Array.from(opponentMap.values()).sort(
+    (a, b) => Date.parse(b.lastPlayedAt || 0) - Date.parse(a.lastPlayedAt || 0)
+  );
+
+  return {
+    gamesPlayed,
+    gamesWon,
+    gamesLost: gamesPlayed - gamesWon,
+    pastOpponents
   };
 }
 
@@ -804,19 +998,24 @@ function publicGameMongo(game, viewerId) {
 async function createAccountsStore() {
   const uri = process.env.MONGODB_URI || "";
   const allowFile = process.env.ALLOW_FILE_ACCOUNTS === "1";
+  const shared = {
+    isValidUsername,
+    normalizeUsername,
+    isValidEmail,
+    normalizeEmail,
+    isValidDisplayName,
+    normalizeDisplayName,
+    looksLikeEmail,
+    verifyPassword,
+    publicUser,
+    publicGame: (game, viewerId) => publicGame(game, viewerId)
+  };
+  if (allowFile) {
+    return { ...createFileBackend(), ...shared };
+  }
   if (uri) {
     const backend = await createMongoBackend(uri);
-    return {
-      ...backend,
-      isValidUsername,
-      normalizeUsername,
-      isValidEmail,
-      normalizeEmail,
-      looksLikeEmail,
-      verifyPassword,
-      publicUser,
-      publicGame: (game, viewerId) => publicGame(game, viewerId)
-    };
+    return { ...backend, ...shared };
   }
   if (!allowFile) {
     const err = new Error(
@@ -826,18 +1025,7 @@ async function createAccountsStore() {
     err.code = "MONGODB_REQUIRED";
     throw err;
   }
-  const backend = createFileBackend();
-  return {
-    ...backend,
-    isValidUsername,
-    normalizeUsername,
-    isValidEmail,
-    normalizeEmail,
-    looksLikeEmail,
-    verifyPassword,
-    publicUser,
-    publicGame: (game, viewerId) => publicGame(game, viewerId)
-  };
+  return { ...createFileBackend(), ...shared };
 }
 
 module.exports = {

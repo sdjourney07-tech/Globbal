@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="en" data-globble-version="ancient">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <script src="./preview-embed.js"></script>
     <title>Globbal — Online</title>
-    <script src="./dictionary-config.js"></script>
     <link rel="icon" href="./assets/favicon.ico" sizes="any" />
     <link rel="icon" href="./assets/logo-mark.svg" type="image/svg+xml" />
     <link rel="preload" href="./assets/ancient-compass-map-original.png" as="image" />
@@ -101,7 +101,16 @@
         </div>
         <div class="play-layout">
           <header class="play-brand">
-            <div class="play-ad-banner" aria-hidden="true"></div>
+            <h1 class="logo-wordmark-wrap">
+              <img
+                class="logo-wordmark"
+                src="./assets/logo-wordmark.svg"
+                width="425"
+                height="90"
+                alt="Globbal"
+                decoding="async"
+              />
+            </h1>
           </header>
           <div class="play-focus">
 
@@ -136,10 +145,10 @@
 
           <section class="rack-panel controls-rack">
             <aside class="game-action-rail" aria-label="Game actions">
-              <button type="button" id="submitTurnBtn">Submit Turn</button>
-              <button type="button" id="recallTilesBtn">Recall Tiles</button>
-              <button type="button" id="passTurnBtn">Pass Turn</button>
-              <button type="button" id="shuffleRackBtn">Shuffle Rack</button>
+              <button type="button" id="submitTurnBtn">Submit</button>
+              <button type="button" id="recallTilesBtn">Recall</button>
+              <button type="button" id="passTurnBtn">Pass</button>
+              <button type="button" id="shuffleRackBtn">Shuffle</button>
             </aside>
 
             <section class="score-strip" aria-label="Scores">
@@ -153,6 +162,20 @@
                     />
                   </svg>
                 </a>
+                <button
+                  type="button"
+                  id="soundToggleBtn"
+                  class="score-sound-btn"
+                  aria-label="Mute all sound"
+                  title="Mute all sound"
+                  aria-pressed="false"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path class="sound-speaker" d="M4 9v6h4l5 4V5L8 9H4z" />
+                    <path class="sound-wave" d="M16 8.2a5 5 0 0 1 0 7.6M18.7 5.5a8.8 8.8 0 0 1 0 13" />
+                    <path class="sound-muted-slash" d="M16 9l5 6M21 9l-5 6" />
+                  </svg>
+                </button>
                 <a
                   class="score-dictionary-btn game-dictionary-link"
                   href="./index.html?dictionary=1&amp;return=./game-online.html"
@@ -177,14 +200,15 @@
     <script src="./accounts-client.js"></script>
     <script src="./board-zoom.js"></script>
     <script src="./place-info.js"></script>
+    <script src="./ambient-sound.js"></script>
     <script src="./rack-shuffle.js"></script>
     <script src="./rack-return.js"></script>
     <script src="./rack-reorder.js"></script>
     <script src="./tile-pointer-drag.js"></script>
     <script src="./blank-picker.js"></script>
     <script src="./dictionary-keys.js"></script>
-    <script src="./dictionary-alias-sources-ancient.js"></script>
-    <script src="./dictionary-ancient.js"></script>
+    <script src="./dictionary-alias-sources.js"></script>
+    <script src="./dictionary.js"></script>
     <script src="./pending-word-glow.js"></script>
     <script src="./invalid-word-toast.js"></script>
     <script src="./game-load-reveal.js"></script>

@@ -1,14 +1,14 @@
 <!doctype html>
-<html lang="en" data-globble-dictionary-browse="full">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <script src="./preview-embed.js"></script>
     <title>Globbal</title>
-    <script src="./dictionary-config.js"></script>
     <link rel="icon" href="./assets/favicon.ico" sizes="any" />
     <link rel="icon" href="./assets/logo-mark.svg" type="image/svg+xml" />
     <link rel="preload" href="./assets/parch2copy.png" as="image" />
-    <link rel="stylesheet" href="./styles.css?v=parch3" />
+    <link rel="stylesheet" href="./styles.css?v=profile1" />
     <link rel="stylesheet" href="./styles-splash.css?v=parch3" />
     <link rel="stylesheet" href="./assets/fonts/globble-logo.css" />
     <link
@@ -128,11 +128,6 @@
     </header>
 
     <main class="landing">
-      <div class="landing-account-bar">
-        <p id="accountStatus" class="landing-account-status">Checking account…</p>
-        <button type="button" id="logoutBtn" class="landing-logout" hidden>Sign out</button>
-      </div>
-
       <div id="authPanel" class="landing-grid">
         <section class="landing-card landing-account-card">
           <h2>Account</h2>
@@ -160,7 +155,24 @@
             </label>
             <label>
               Password
-              <input id="authPassword" name="password" type="password" autocomplete="current-password" required />
+              <span class="landing-password-field">
+                <input
+                  id="authPassword"
+                  name="password"
+                  type="password"
+                  autocomplete="current-password"
+                  required
+                />
+                <button
+                  type="button"
+                  id="authPasswordToggle"
+                  class="landing-password-toggle"
+                  aria-label="Show password"
+                  aria-pressed="false"
+                >
+                  Show
+                </button>
+              </span>
             </label>
             <div class="landing-auth-actions">
               <button type="submit" id="loginBtn">Sign in</button>
@@ -186,65 +198,21 @@
             <p id="forgotError" class="landing-error" aria-live="polite"></p>
           </form>
         </section>
-      </div>
 
-      <div id="playPanel" class="landing-grid" hidden>
-        <details id="gamesDisclosure" class="landing-card landing-disclosure landing-games" open>
-          <summary class="landing-disclosure-summary">
-            <span class="landing-disclosure-label">
-              <span class="landing-disclosure-title">Games</span>
-              <span class="landing-disclosure-teaser">Your challenges and matches in progress</span>
-            </span>
-          </summary>
-          <div class="landing-disclosure-body">
-            <div class="games-toolbar">
-              <button type="button" id="gamesRefreshBtn">Refresh</button>
-            </div>
-            <p id="gamesHint" class="hint">Loading…</p>
-            <ul id="gamesList" class="games-list"></ul>
-          </div>
-        </details>
-
-        <section class="landing-card">
-          <h2>Find a player</h2>
-          <p>Search by username and send a challenge.</p>
-          <div class="player-search-row">
-            <input
-              id="playerSearchInput"
-              type="search"
-              placeholder="Search username…"
-              autocomplete="off"
-              spellcheck="false"
-            />
-            <button type="button" id="playerSearchBtn">Search</button>
-          </div>
-          <p id="playerSearchError" class="landing-error" aria-live="polite"></p>
-          <ul id="playerSearchResults" class="player-search-results"></ul>
+        <section class="landing-card landing-about-card">
+          <h2>About Globbal</h2>
+          <p class="landing-about-copy">
+            Avast, ye maties! Prepare to embark on a perilous journey to regions known and unknown, where your knowlegde of cities, countries, townships and the like will bring you great reward. But beware, your fellow sojourners on this treacherous journey are skilled skalliwags looking for means to dispatch you forthwith.
+          </p>
+          <p class="landing-about-copy">
+            So, study your treasure map, sharpen your spelling skills, and be prepared to be hoisted on your own pettard.
+          </p>
         </section>
 
-        <a class="landing-card" href="./practice.html">
-          <h2>Practice (solo)</h2>
-          <p>Two-player rules on one device — good for trying the board without an opponent.</p>
-          <span class="landing-cta">Open practice →</span>
-        </a>
-
-        <a class="landing-card" href="./practice-ancient.html">
-          <h2>Ancient version</h2>
-          <p>Modern dictionary plus historical countries, regions, and cities — Zaire, Gaul, Constantinople, and more.</p>
-          <span class="landing-cta">Open ancient practice →</span>
-        </a>
-      </div>
-
-      <div class="landing-grid landing-practice-guest" id="guestPracticePanel">
-        <a class="landing-card" href="./practice.html">
-          <h2>Practice (solo)</h2>
-          <p>Play without an account on one device.</p>
-          <span class="landing-cta">Open practice →</span>
-        </a>
-        <a class="landing-card" href="./practice-ancient.html">
-          <h2>Ancient version</h2>
-          <p>Historical places dictionary for solo practice.</p>
-          <span class="landing-cta">Open ancient practice →</span>
+        <a class="landing-card" href="./rules.html">
+          <h2>Rules</h2>
+          <p>Scoring, turns, and how legal words work.</p>
+          <span class="landing-cta">Read the rules →</span>
         </a>
       </div>
 
@@ -298,13 +266,13 @@
     </div>
 
     <script src="./accounts-client.js"></script>
-    <script src="./accounts-menu.js"></script>
+    <script src="./accounts-auth.js"></script>
     <script src="./dictionary-keys.js"></script>
+    <script src="./dictionary-alias-sources.js"></script>
     <script>
       (function loadDictionaryScript() {
-        const src = window.GLOBBLE_DICTIONARY_SCRIPT || "./dictionary.js";
         const el = document.createElement("script");
-        el.src = src;
+        el.src = "./dictionary.js";
         el.async = true;
         el.onload = function () {
           const menu = document.createElement("script");
