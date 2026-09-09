@@ -301,7 +301,8 @@ const PRACTICE_TEST_RACK_WORDS = ["BARCELONA", "BERLIN"];
 let practiceTestWordIndex = 0;
 
 function isPracticeTestRacksEnabled() {
-  return !shouldStartDemoGame();
+  // Off for fair play — racks draw randomly from the bag like a normal game.
+  return false;
 }
 
 function resetPracticeTestRackState() {
@@ -394,8 +395,8 @@ function initDemoGame() {
 }
 
 function shouldStartDemoGame() {
-  const params = new URLSearchParams(window.location.search);
-  return params.has("demo");
+  // Demo pre-filled boards are disabled — always start a normal empty game.
+  return false;
 }
 
 function createTileBag() {

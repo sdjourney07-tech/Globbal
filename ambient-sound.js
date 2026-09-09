@@ -103,26 +103,11 @@
   }
 
   function playSailFlap() {
-    if (!ambientBus || muted || !isBoardVisible() || context.state !== "running") {
-      return;
-    }
-    const flapCount = 2 + Math.floor(Math.random() * 3);
-    for (let index = 0; index < flapCount; index += 1) {
-      const start = context.currentTime + index * (0.14 + Math.random() * 0.08);
-      const duration = 0.16 + Math.random() * 0.12;
-      const source = context.createBufferSource();
-      const filter = context.createBiquadFilter();
-      const gain = context.createGain();
-      source.buffer = makeWhiteNoiseBuffer(duration);
-      filter.type = "bandpass";
-      filter.frequency.value = 440 + Math.random() * 940;
-      filter.Q.value = 0.55;
-      gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.exponentialRampToValueAtTime(0.052 + Math.random() * 0.028, start + 0.022);
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-      source.connect(filter).connect(gain).connect(ambientBus);
-      source.start(start);
-    }
+    // Disabled — the random flap bursts read as annoying clacks in play.
+  }
+
+  function scheduleSailFlap() {
+    // No-op: keep API so stopAmbient still clears sailTimer safely.
   }
 
   function playFoghorn() {
@@ -191,14 +176,6 @@
     }, first ? 9000 + Math.random() * 7000 : 24000 + Math.random() * 22000);
   }
 
-  function scheduleSailFlap() {
-    clearTimeout(sailTimer);
-    sailTimer = window.setTimeout(() => {
-      playSailFlap();
-      scheduleSailFlap();
-    }, 1800 + Math.random() * 3500);
-  }
-
   function scheduleSeabird(first = false) {
     clearTimeout(seabirdTimer);
     seabirdTimer = window.setTimeout(() => {
@@ -221,7 +198,6 @@
     // Light wind only—the former low ocean-wave layer has been removed.
     addNoiseLayer({ cutoff: 1650, volume: 0.032, breezeRate: 0.047, breezeDepth: 0.012 });
     scheduleFoghorn(true);
-    scheduleSailFlap();
     scheduleSeabird(true);
   }
 
