@@ -6,8 +6,10 @@
   const PLACEMENT_ZOOM_SCALE = 1.88;
   const DRAG_FOCUS_SCALE = 1.78;
   const DRAG_FOCUS_SCALE_LERP = 0.38;
+  const DRAG_FOCUS_SCALE_LERP_COARSE = 0.82;
   const DRAG_FOCUS_EDGE_PX = 52;
   const DRAG_FOCUS_EDGE_PAN_PX = 16;
+  const DRAG_FOCUS_EDGE_PAN_PX_COARSE = 7;
   const MIN_SCALE = 1;
   const MAX_SCALE = 2.4;
   const PLACEMENT_ANIM_MS = 180;
@@ -31,8 +33,21 @@
     dragFocusActive: false,
     dragFocusPaused: false,
     dragFocusSnapshot: null,
-    dropHoverCell: null
+    dropHoverCell: null,
+    dragFocusRafId: null,
+    dragFocusPending: null
   };
+
+  function isCoarsePointer() {
+    try {
+      return (
+        window.matchMedia("(pointer: coarse)").matches ||
+        window.matchMedia("(hover: none)").matches
+      );
+    } catch {
+      return false;
+    }
+  }
 
   function cancelAnim() {
     if (state.animFrameId != null) {
@@ -84,36 +99,20 @@
   }
 
   function getTranslateBounds(layout, scale) {
-    // Keep the board covering the viewport. No large empty gutters around it.
-    const origin = getStageOrigin(layout);
+    // Layout already includes --board-zoom, so pan math uses scale=1 on measured sizes.
+    // `scale` is kept for API compatibility with callers that still pass state.scale.
+    const effectiveScale = 1;
+    void scale;
     const boardLeft = layout.boardLeft;
     const boardRight = layout.boardLeft + layout.boardW;
     const boardTop = layout.boardTop;
     const boardBottom = layout.boardTop + layout.boardH;
     const edgePad = 2;
 
-    let minX =
-      layout.wrapW -
-      layout.stageLeft -
-      origin.x * (1 - scale) -
-      boardRight * scale -
-      edgePad;
-    let maxX =
-      -layout.stageLeft -
-      origin.x * (1 - scale) -
-      boardLeft * scale +
-      edgePad;
-    let minY =
-      layout.wrapH -
-      layout.stageTop -
-      origin.y * (1 - scale) -
-      boardBottom * scale -
-      edgePad;
-    let maxY =
-      -layout.stageTop -
-      origin.y * (1 - scale) -
-      boardTop * scale +
-      edgePad;
+    let minX = layout.wrapW - layout.stageLeft - boardRight * effectiveScale - edgePad;
+    let maxX = -layout.stageLeft - boardLeft * effectiveScale + edgePad;
+    let minY = layout.wrapH - layout.stageTop - boardBottom * effectiveScale - edgePad;
+    let maxY = -layout.stageTop - boardTop * effectiveScale + edgePad;
 
     // Scaled board fits inside the wrap → lock to the centered pose.
     if (minX > maxX) {
@@ -128,6 +127,13 @@
     }
 
     return { minX, maxX, minY, maxY };
+  }
+
+  function syncLayoutZoom(scale) {
+    if (!state.stage) {
+      return;
+    }
+    state.stage.style.setProperty("--board-zoom", String(scale));
   }
 
   function clampTransform() {
@@ -196,9 +202,12 @@
     if (!state.stage) {
       return;
     }
+    // Grow the board in layout pixels (crisp tiles/text), then pan with translate only.
+    // Avoid CSS scale() — that bitmap-stretches tiles and looks soft when zoomed in.
+    syncLayoutZoom(state.scale);
     clampTransform();
     state.stage.classList.toggle("board-stage-zoom-anim", animateCss);
-    state.stage.style.transform = `translate(${state.translateX}px, ${state.translateY}px) scale(${state.scale})`;
+    state.stage.style.transform = `translate3d(${state.translateX}px, ${state.translateY}px, 0)`;
     state.wrap?.classList.toggle(
       "board-wrap-zoomed",
       state.scale !== 1 || state.translateX !== 0 || state.translateY !== 0
@@ -220,24 +229,22 @@
   }
 
   function computeFocalTransform(focal, scale) {
-    const metrics = stageMetrics();
     const layout = getBoardLayout();
-    if (!metrics || !focal || !layout) {
+    if (!layout || !focal || state.scale === 0) {
       return null;
     }
-    const origin = getStageOrigin(layout);
+    const nextScale = clamp(scale, MIN_SCALE, MAX_SCALE);
+    const baseW = layout.stageW / state.scale;
+    const baseH = layout.stageH / state.scale;
+    const stageW = baseW * nextScale;
+    const stageH = baseH * nextScale;
+    // Flex-centered stage position at the destination size.
+    const stageLeft = (layout.wrapW - stageW) / 2;
+    const stageTop = (layout.wrapH - stageH) / 2;
     return {
-      scale,
-      translateX:
-        metrics.wrapCenterX -
-        metrics.stageLeft -
-        origin.x * (1 - scale) -
-        focal.x * scale,
-      translateY:
-        metrics.wrapCenterY -
-        metrics.stageTop -
-        origin.y * (1 - scale) -
-        focal.y * scale
+      scale: nextScale,
+      translateX: layout.wrapW / 2 - stageLeft - focal.x * nextScale,
+      translateY: layout.wrapH / 2 - stageTop - focal.y * nextScale
     };
   }
 
@@ -358,40 +365,27 @@
 
   function screenPointToStageLocal(clientX, clientY) {
     const metrics = stageMetrics();
-    const layout = getBoardLayout();
     const point = wrapPointFromClient(clientX, clientY);
-    if (!metrics || !layout || state.scale === 0) {
+    if (!metrics || state.scale === 0) {
       return { x: 0, y: 0 };
     }
-    const origin = getStageOrigin(layout);
+    // Convert screen → unscaled board-local coords (layout already includes zoom).
     return {
-      x:
-        origin.x +
-        (point.x - metrics.stageLeft - state.translateX - origin.x) / state.scale,
-      y:
-        origin.y +
-        (point.y - metrics.stageTop - state.translateY - origin.y) / state.scale
+      x: (point.x - metrics.stageLeft - state.translateX) / state.scale,
+      y: (point.y - metrics.stageTop - state.translateY) / state.scale
     };
   }
 
   function setTransformAtPoint(scale, wrapX, wrapY, stageLocalX, stageLocalY) {
+    state.scale = clamp(scale, MIN_SCALE, MAX_SCALE);
+    syncLayoutZoom(state.scale);
     const metrics = stageMetrics();
-    const layout = getBoardLayout();
-    if (!metrics || !layout) {
+    if (!metrics) {
+      applyTransform(false);
       return;
     }
-    const origin = getStageOrigin(layout);
-    state.scale = clamp(scale, MIN_SCALE, MAX_SCALE);
-    state.translateX =
-      wrapX -
-      metrics.stageLeft -
-      origin.x * (1 - state.scale) -
-      stageLocalX * state.scale;
-    state.translateY =
-      wrapY -
-      metrics.stageTop -
-      origin.y * (1 - state.scale) -
-      stageLocalY * state.scale;
+    state.translateX = wrapX - metrics.stageLeft - stageLocalX * state.scale;
+    state.translateY = wrapY - metrics.stageTop - stageLocalY * state.scale;
     applyTransform(false);
   }
 
@@ -538,6 +532,26 @@
       return;
     }
 
+    state.dragFocusPending = { clientX, clientY };
+    if (state.dragFocusRafId != null) {
+      return;
+    }
+    state.dragFocusRafId = requestAnimationFrame(() => {
+      state.dragFocusRafId = null;
+      const pending = state.dragFocusPending;
+      state.dragFocusPending = null;
+      if (!pending || !state.dragFocusActive) {
+        return;
+      }
+      applyDragFocus(pending.clientX, pending.clientY);
+    });
+  }
+
+  function applyDragFocus(clientX, clientY) {
+    if (!state.dragFocusActive || !state.wrap || !state.stage) {
+      return;
+    }
+
     state.dragFocusPaused = false;
     cancelAnim();
 
@@ -552,29 +566,32 @@
       MIN_SCALE,
       MAX_SCALE
     );
+    const coarse = isCoarsePointer();
+    const lerp = coarse ? DRAG_FOCUS_SCALE_LERP_COARSE : DRAG_FOCUS_SCALE_LERP;
+    const edgePan = coarse ? DRAG_FOCUS_EDGE_PAN_PX_COARSE : DRAG_FOCUS_EDGE_PAN_PX;
 
-    // Zoom under the focus point so the cell about to receive the tile stays readable.
+    // Zoom under the finger so the cell about to receive the tile stays readable.
     const local = screenPointToStageLocal(clientX, clientY);
     const point = wrapPointFromClient(clientX, clientY);
     const scaleDelta = targetScale - state.scale;
     const nextScale =
       Math.abs(scaleDelta) <= 0.02
         ? targetScale
-        : state.scale + scaleDelta * Math.max(DRAG_FOCUS_SCALE_LERP, 0.55);
+        : state.scale + scaleDelta * Math.max(lerp, 0.55);
     setTransformAtPoint(nextScale, point.x, point.y, local.x, local.y);
 
     // Near the viewport edge, nudge the board so far cells stay reachable while zoomed.
     let panX = 0;
     let panY = 0;
     if (clientX < wrapRect.left + DRAG_FOCUS_EDGE_PX) {
-      panX = DRAG_FOCUS_EDGE_PAN_PX;
+      panX = edgePan;
     } else if (clientX > wrapRect.right - DRAG_FOCUS_EDGE_PX) {
-      panX = -DRAG_FOCUS_EDGE_PAN_PX;
+      panX = -edgePan;
     }
     if (clientY < wrapRect.top + DRAG_FOCUS_EDGE_PX) {
-      panY = DRAG_FOCUS_EDGE_PAN_PX;
+      panY = edgePan;
     } else if (clientY > wrapRect.bottom - DRAG_FOCUS_EDGE_PX) {
-      panY = -DRAG_FOCUS_EDGE_PAN_PX;
+      panY = -edgePan;
     }
     if (panX || panY) {
       state.translateX += panX;
@@ -586,6 +603,11 @@
   }
 
   function endDragFocus({ restore = false } = {}) {
+    if (state.dragFocusRafId != null) {
+      cancelAnimationFrame(state.dragFocusRafId);
+      state.dragFocusRafId = null;
+    }
+    state.dragFocusPending = null;
     if (!state.dragFocusActive) {
       clearDropHover();
       return;

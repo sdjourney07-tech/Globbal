@@ -2,7 +2,7 @@
 
 const fs = require("fs");
 const { buildPlayableDictionary } = require("./dictionary-keys.js");
-const { moveRackSlots } = require("./rack-move.cjs");
+const { moveRackSlots, remapRackIndicesAfterMove } = require("./rack-move.cjs");
 const path = require("path");
 
 const BOARD_COLS = 15;
@@ -203,7 +203,8 @@ function resolveRackSlot(rack, preferredIndex) {
   if (
     Number.isInteger(preferredIndex) &&
     preferredIndex >= 0 &&
-    preferredIndex < RACK_SIZE
+    preferredIndex < RACK_SIZE &&
+    !rack[preferredIndex]
   ) {
     return preferredIndex;
   }
@@ -915,6 +916,9 @@ class OnlineGame {
     }
     if (!moveRackSlots(rack, from, to, RACK_SIZE)) {
       return { ok: false, error: "Invalid rack index." };
+    }
+    if (playerIndex === this.currentPlayer && this.turnPlacedTiles.length) {
+      remapRackIndicesAfterMove(this.turnPlacedTiles, from, to, RACK_SIZE);
     }
     return { ok: true };
   }

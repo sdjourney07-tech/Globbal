@@ -271,6 +271,7 @@
   window.GlobblePendingWordGlow = {
     getGlowCellKeys,
     getQwPlatedCellKeys,
+    validatePendingTurn,
     syncGlowDisplay,
     registerRenderCallback,
     resetGlowState

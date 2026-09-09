@@ -11,6 +11,7 @@ const WebSocket = require("ws");
 const { loadDictionary, OnlineGame } = require("./game-engine.cjs");
 const { createAccountsStore } = require("./accounts-store.cjs");
 const { createAccountsHttp } = require("./accounts-http.cjs");
+const { containsBannedLanguage } = require("./chat-filter.cjs");
 
 const PORT = Number(process.env.PORT, 10) || 8080;
 const HOST = process.env.HOST || "0.0.0.0";
@@ -234,6 +235,121 @@ function broadcastRoom(room) {
   }
 }
 
+const CHAT_MAX_LEN = 200;
+const CHAT_MAX_MESSAGES = 40;
+const CHAT_MIN_INTERVAL_MS = 400;
+
+function ensureRoomChat(room) {
+  if (!Array.isArray(room.chatOptIn) || room.chatOptIn.length !== 2) {
+    room.chatOptIn = [false, false];
+  }
+  if (!Array.isArray(room.chatMessages)) {
+    room.chatMessages = [];
+  }
+  if (!Array.isArray(room.chatLastSendAt) || room.chatLastSendAt.length !== 2) {
+    room.chatLastSendAt = [0, 0];
+  }
+}
+
+function chatBothEnabled(room) {
+  ensureRoomChat(room);
+  return Boolean(room.chatOptIn[0] && room.chatOptIn[1]);
+}
+
+function sanitizeChatText(raw) {
+  return String(raw || "")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, CHAT_MAX_LEN);
+}
+
+function sendChatPayload(sock, payload) {
+  if (sock && sock.readyState === WebSocket.OPEN) {
+    sock.send(JSON.stringify(payload));
+  }
+}
+
+function chatStatusPayload(room, viewerIndex) {
+  ensureRoomChat(room);
+  const optedIn = Boolean(room.chatOptIn[viewerIndex]);
+  const bothEnabled = chatBothEnabled(room);
+  return {
+    type: "chatStatus",
+    optIn: [Boolean(room.chatOptIn[0]), Boolean(room.chatOptIn[1])],
+    youEnabled: optedIn,
+    bothEnabled,
+    // History only while this viewer is opted in and both sides are in chat.
+    messages: optedIn && bothEnabled ? room.chatMessages.slice(-CHAT_MAX_MESSAGES) : []
+  };
+}
+
+function broadcastChatStatus(room) {
+  for (let i = 0; i < 2; i += 1) {
+    sendChatPayload(room.slots[i], chatStatusPayload(room, i));
+  }
+}
+
+function broadcastChatMessage(room, message) {
+  for (let i = 0; i < 2; i += 1) {
+    if (!room.chatOptIn[i]) {
+      continue;
+    }
+    sendChatPayload(room.slots[i], { type: "chatMessage", message });
+  }
+}
+
+function handleChatOptIn(room, playerIndex, enabled) {
+  ensureRoomChat(room);
+  const next = Boolean(enabled);
+  const prev = Boolean(room.chatOptIn[playerIndex]);
+  if (prev === next) {
+    broadcastChatStatus(room);
+    return;
+  }
+  room.chatOptIn[playerIndex] = next;
+  // Leaving chat clears the in-game transcript for privacy.
+  if (!next || !chatBothEnabled(room)) {
+    room.chatMessages = [];
+  }
+  broadcastChatStatus(room);
+}
+
+function handleChatSend(room, playerIndex, rawText) {
+  ensureRoomChat(room);
+  if (!room.chatOptIn[playerIndex]) {
+    return { ok: false, error: "Join chat first to send messages." };
+  }
+  if (!chatBothEnabled(room)) {
+    return { ok: false, error: "Waiting for your opponent to join chat." };
+  }
+  const text = sanitizeChatText(rawText);
+  if (!text) {
+    return { ok: false, error: "Message is empty." };
+  }
+  if (containsBannedLanguage(text)) {
+    return { ok: false, error: "That message has language we don’t allow in chat." };
+  }
+  const now = Date.now();
+  if (now - (room.chatLastSendAt[playerIndex] || 0) < CHAT_MIN_INTERVAL_MS) {
+    return { ok: false, error: "Slow down a bit." };
+  }
+  room.chatLastSendAt[playerIndex] = now;
+  const message = {
+    id: `${now}-${playerIndex}-${Math.random().toString(36).slice(2, 8)}`,
+    fromPlayerIndex: playerIndex,
+    username: String(room.usernames[playerIndex] || `Player ${playerIndex + 1}`),
+    text,
+    at: now
+  };
+  room.chatMessages.push(message);
+  if (room.chatMessages.length > CHAT_MAX_MESSAGES) {
+    room.chatMessages = room.chatMessages.slice(-CHAT_MAX_MESSAGES);
+  }
+  broadcastChatMessage(room, message);
+  return { ok: true };
+}
+
 function attachSlot(ws, room, playerIndex) {
   cancelRoomCleanup(room);
   const existing = room.slots[playerIndex];
@@ -292,7 +408,10 @@ async function ensureLiveGame(gameDoc) {
     seatTokens: gameDoc.seatTokens ? gameDoc.seatTokens.slice() : [null, null],
     idleTimer: null,
     createdAt: Date.parse(gameDoc.createdAt) || Date.now(),
-    status: gameDoc.status
+    status: gameDoc.status,
+    chatOptIn: [false, false],
+    chatMessages: [],
+    chatLastSendAt: [0, 0]
   };
   liveGames.set(gameId, room);
   if (gameDoc.status === "active" && game.gameStarted && !gameDoc.liveSnapshot) {
@@ -370,6 +489,7 @@ async function handleMessage(ws, raw) {
       })
     );
     broadcastRoom(room);
+    sendChatPayload(ws, chatStatusPayload(room, playerIndex));
     return;
   }
 
@@ -392,6 +512,19 @@ async function handleMessage(ws, raw) {
 
   const { room, playerIndex } = meta;
   const { game } = room;
+
+  if (type === "chatOptIn") {
+    handleChatOptIn(room, playerIndex, msg.enabled);
+    return;
+  }
+  if (type === "chatSend") {
+    const chatResult = handleChatSend(room, playerIndex, msg.text);
+    if (!chatResult.ok) {
+      ws.send(JSON.stringify({ type: "error", error: chatResult.error || "Chat rejected." }));
+    }
+    return;
+  }
+
   let result;
 
   switch (type) {
@@ -451,7 +584,7 @@ async function handleMessage(ws, raw) {
 
   if (!result.ok) {
     ws.send(JSON.stringify({ type: "error", error: result.error || "Rejected." }));
-    if (result.error?.startsWith("Invalid word:")) {
+    if (result.error?.startsWith("Invalid word")) {
       broadcastRoom(room);
     }
     return;

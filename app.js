@@ -471,7 +471,8 @@ function resolveRackSlot(rack, preferredIndex) {
   if (
     Number.isInteger(preferredIndex) &&
     preferredIndex >= 0 &&
-    preferredIndex < RACK_SIZE
+    preferredIndex < RACK_SIZE &&
+    !rack[preferredIndex]
   ) {
     return preferredIndex;
   }
@@ -535,10 +536,21 @@ function shuffleRackSlots(rack) {
 }
 
 function moveRackSlot(rack, fromIndex, toIndex) {
-  if (window.GlobbleRackReorder?.moveRackSlots) {
-    return window.GlobbleRackReorder.moveRackSlots(rack, fromIndex, toIndex, RACK_SIZE);
+  if (!window.GlobbleRackReorder?.moveRackSlots) {
+    return false;
   }
-  return false;
+  if (!window.GlobbleRackReorder.moveRackSlots(rack, fromIndex, toIndex, RACK_SIZE)) {
+    return false;
+  }
+  if (turnPlacedTiles.length) {
+    window.GlobbleRackReorder.remapRackIndicesAfterMove?.(
+      turnPlacedTiles,
+      fromIndex,
+      toIndex,
+      RACK_SIZE
+    );
+  }
+  return true;
 }
 
 function render() {
@@ -703,7 +715,8 @@ function renderBagCount() {
   if (!bagCountEl) {
     return;
   }
-  bagCountEl.textContent = `${bag.length} left in the bag`;
+  bagCountEl.textContent =
+    bag.length === 1 ? "1 tile left" : `${bag.length} tiles left`;
   schedulePlayableWordCount();
 }
 
@@ -1220,6 +1233,7 @@ function onAnyDragEnd() {
   }
   if (window.GlobbleRackReorder) {
     window.GlobbleRackReorder.finishDragGhost();
+    window.GlobbleRackReorder.clearReorderPreview?.(rackEl);
   }
   window.GlobbleBoardZoom?.endDragFocus?.({ restore: false });
   rackEl.classList.remove("rack-reorder-active");
@@ -1229,6 +1243,7 @@ function onAnyDragEnd() {
 
 function clearActiveTileDragState() {
   window.GlobbleRackReorder?.finishDragGhost();
+  window.GlobbleRackReorder?.clearReorderPreview?.(rackEl);
   // Don't kill placement zoom mid-drag when the board/rack re-renders.
   if (!window.GlobbleTilePointerDrag?.isActive?.()) {
     window.GlobbleBoardZoom?.endDragFocus?.({ restore: false });
@@ -1297,6 +1312,7 @@ async function handlePointerTileDrop(clientX, clientY) {
       rackEl,
       draggingRackIndex
     );
+    window.GlobbleRackReorder.clearReorderPreview?.(rackEl);
     if (draggingRackIndex !== toIndex) {
       const rack = players[currentPlayer].rack;
       if (moveRackSlot(rack, draggingRackIndex, toIndex)) {

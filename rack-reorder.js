@@ -87,7 +87,53 @@
     return moveRackSlots(array, fromIndex, toIndex, array.length);
   }
 
+  function remapRackIndicesAfterMove(entries, fromIndex, toIndex, rackSize) {
+    if (!Array.isArray(entries) || entries.length === 0 || fromIndex === toIndex) {
+      return;
+    }
+    const size = rackSize ?? 0;
+    if (size <= 0) {
+      return;
+    }
+    const order = Array.from({ length: size }, (_, index) => index);
+    const [moved] = order.splice(fromIndex, 1);
+    order.splice(toIndex, 0, moved);
+    const newPosOf = new Array(size);
+    order.forEach((oldIndex, newPos) => {
+      newPosOf[oldIndex] = newPos;
+    });
+    entries.forEach((entry) => {
+      if (
+        entry &&
+        Number.isInteger(entry.rackIndex) &&
+        entry.rackIndex >= 0 &&
+        entry.rackIndex < size
+      ) {
+        entry.rackIndex = newPosOf[entry.rackIndex];
+      }
+    });
+  }
+
+  function clearReorderPreview(rackEl) {
+    if (!rackEl) {
+      return;
+    }
+    rackEl.classList.remove("rack-reorder-live");
+    rackEl.querySelectorAll(".rack-slot").forEach((slot) => {
+      slot.classList.remove("rack-slot-drop-hole");
+      const tile = slot.querySelector(".tile");
+      if (!tile) {
+        return;
+      }
+      tile.classList.remove("rack-reorder-sliding");
+      tile.style.transform = "";
+      tile.style.transition = "";
+      tile.style.zIndex = "";
+    });
+  }
+
   function clearDropIndicator(rackEl) {
+    clearReorderPreview(rackEl);
     rackEl.querySelectorAll(".rack-slot.rack-insert-before").forEach((el) => {
       el.classList.remove("rack-insert-before");
     });
@@ -95,6 +141,87 @@
       el.classList.remove("rack-slot-return-target");
     });
     delete rackEl.dataset.dropIndex;
+  }
+
+  /**
+   * Live visual reorder while dragging: siblings slide into the layout that
+   * moveRackSlots(from, to) would produce, with a clear hole at the drop slot.
+   */
+  function previewReorder(rackEl, fromIndex, toIndex) {
+    if (!rackEl) {
+      return;
+    }
+    const slots = [...rackEl.querySelectorAll(".rack-slot")];
+    const size = slots.length;
+    if (
+      size === 0 ||
+      fromIndex < 0 ||
+      fromIndex >= size ||
+      toIndex < 0 ||
+      toIndex >= size
+    ) {
+      clearReorderPreview(rackEl);
+      return;
+    }
+
+    rackEl.classList.add("rack-reorder-live");
+
+    if (fromIndex === toIndex) {
+      slots.forEach((slot, index) => {
+        slot.classList.toggle("rack-slot-drop-hole", index === fromIndex);
+        const tile = slot.querySelector(".tile");
+        if (!tile || tile.classList.contains("tile-drag-source")) {
+          return;
+        }
+        tile.classList.remove("rack-reorder-sliding");
+        tile.style.transform = "";
+        tile.style.transition = "transform 140ms cubic-bezier(0.22, 1, 0.36, 1)";
+        tile.style.zIndex = "";
+      });
+      rackEl.dataset.dropIndex = String(toIndex);
+      return;
+    }
+
+    const order = Array.from({ length: size }, (_, index) => index);
+    const [moved] = order.splice(fromIndex, 1);
+    order.splice(toIndex, 0, moved);
+    const newPosOf = new Array(size);
+    order.forEach((origIndex, newPos) => {
+      newPosOf[origIndex] = newPos;
+    });
+
+    const bases = slots.map((slot) => {
+      const rect = slot.getBoundingClientRect();
+      return { left: rect.left, top: rect.top };
+    });
+
+    slots.forEach((slot, origIndex) => {
+      const isHole = origIndex === toIndex;
+      slot.classList.toggle("rack-slot-drop-hole", isHole);
+
+      const tile = slot.querySelector(".tile");
+      if (!tile) {
+        return;
+      }
+      if (tile.classList.contains("tile-drag-source")) {
+        tile.style.transform = "";
+        tile.classList.remove("rack-reorder-sliding");
+        return;
+      }
+
+      const destIndex = newPosOf[origIndex];
+      const dx = bases[destIndex].left - bases[origIndex].left;
+      const dy = bases[destIndex].top - bases[origIndex].top;
+      tile.classList.add("rack-reorder-sliding");
+      tile.style.transition = "transform 140ms cubic-bezier(0.22, 1, 0.36, 1)";
+      tile.style.transform =
+        Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5
+          ? ""
+          : `translate(${dx}px, ${dy}px)`;
+      tile.style.zIndex = tile.style.transform ? "3" : "";
+    });
+
+    rackEl.dataset.dropIndex = String(toIndex);
   }
 
   function getRackSlotAtPoint(event, rackEl) {
@@ -157,6 +284,7 @@
         if (event.dataTransfer) {
           event.dataTransfer.dropEffect = "move";
         }
+        clearReorderPreview(rackEl);
         rackEl.classList.add("rack-reorder-active");
         const slotIndex = getRackSlotAtPoint(event, rackEl);
         updateReturnDropIndicator(rackEl, slotIndex);
@@ -173,7 +301,7 @@
       }
       rackEl.classList.add("rack-reorder-active");
       const toIndex = getDropIndex(event, rackEl, fromIndex);
-      updateDropIndicator(rackEl, toIndex, fromIndex);
+      previewReorder(rackEl, fromIndex, toIndex);
     }, true);
 
     rackEl.addEventListener("dragleave", (event) => {
@@ -225,8 +353,8 @@
 
   function dragVisuals() {
     if (isCoarsePointer()) {
-      // Lift above the finger so the tile isn't covered; scale up for visibility.
-      return { scale: 1.22, liftY: 56 };
+      // Slight lift so the fingertip does not fully cover the tile; drop uses the finger.
+      return { scale: 1.12, liftY: 18 };
     }
     return { scale: 1.06, liftY: 0 };
   }
@@ -268,8 +396,8 @@
     const computed = getComputedStyle(source);
     ghost.className = `${source.className} tile-drag-ghost`.replace(/\btile-drag-source\b/g, "").trim();
     ghost.style.position = "fixed";
-    ghost.style.left = `${rect.left}px`;
-    ghost.style.top = `${rect.top}px`;
+    ghost.style.left = "0";
+    ghost.style.top = "0";
     ghost.style.width = `${rect.width}px`;
     ghost.style.height = `${rect.height}px`;
     ghost.style.margin = "0";
@@ -277,9 +405,9 @@
     ghost.style.visibility = "visible";
     ghost.style.pointerEvents = "none";
     ghost.style.zIndex = "10000";
-    ghost.style.willChange = "left, top, transform";
+    ghost.style.willChange = "transform";
     ghost.style.transformOrigin = "center center";
-    ghost.style.transform = `scale(${scale})`;
+    ghost.style.transform = `translate3d(${rect.left}px, ${rect.top}px, 0) scale(${scale})`;
     ghost.style.display = computed.display;
     ghost.style.alignItems = computed.alignItems;
     ghost.style.justifyContent = computed.justifyContent;
@@ -313,11 +441,12 @@
     if (event.clientX === 0 && event.clientY === 0) {
       return;
     }
-    // Anchor ghost center to the pointer (with optional lift above a finger).
+    // Anchor ghost center to the pointer (tiny lift on touch so the fingertip does not cover it).
     const halfW = activeDrag.width / 2;
     const halfH = activeDrag.height / 2;
-    activeDrag.ghost.style.left = `${event.clientX - halfW}px`;
-    activeDrag.ghost.style.top = `${event.clientY - halfH - activeDrag.liftY}px`;
+    const x = event.clientX - halfW;
+    const y = event.clientY - halfH - activeDrag.liftY;
+    activeDrag.ghost.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${activeDrag.scale})`;
   }
 
   function onDragMove(event) {
@@ -392,14 +521,7 @@
   }
 
   function endPointerDragTracking() {
-    document.removeEventListener("pointermove", onPointerDragMove);
-  }
-
-  function onPointerDragMove(event) {
-    if (event.cancelable) {
-      event.preventDefault();
-    }
-    positionDragGhost(event);
+    // Pointer moves are driven by GlobbleTilePointerDrag → movePointerDrag.
   }
 
   function beginPointerDrag(source, clientX, clientY) {
@@ -408,9 +530,6 @@
     }
     finishDragGhost();
     startDragGhostFromSource(source, clientX, clientY);
-    document.addEventListener("pointermove", onPointerDragMove, {
-      passive: false
-    });
   }
 
   function movePointerDrag(clientX, clientY) {
@@ -440,6 +559,10 @@
     getRackSlotAtPoint,
     moveRackSlots,
     moveInArray,
+    remapRackIndicesAfterMove,
+    previewReorder,
+    clearReorderPreview,
+    clearDropIndicator,
     setOpaqueDragImage,
     beginPointerDrag,
     movePointerDrag,

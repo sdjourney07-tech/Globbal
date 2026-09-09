@@ -8,6 +8,8 @@
   let pending = null;
   let pointerDragging = false;
   let suppressClickUntil = 0;
+  let moveRafId = null;
+  let latestMoveEvent = null;
 
   function isTileDraggable(tile) {
     if (!(tile instanceof Element)) {
@@ -123,24 +125,23 @@
     const rect = wrap.getBoundingClientRect();
     const pointOver = (x, y) =>
       x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
-    const center = getGhostCenter(event.clientX, event.clientY);
-    const ghostOver = pointOver(center.x, center.y);
-    const pointerOver = pointOver(event.clientX, event.clientY);
+    // Aim with the finger — that is what players expect on iPhone/iPad.
+    const fingerX = event.clientX;
+    const fingerY = event.clientY;
+    const fingerOver = pointOver(fingerX, fingerY);
+    const ghost = getGhostCenter(fingerX, fingerY);
+    const ghostOver = pointOver(ghost.x, ghost.y);
 
-    // Still treat rack hover as off-board for drop-target highlight only when
-    // the pointer is clearly on the rack and not on the board.
-    if (overRack && !pointerOver && !ghostOver) {
+    if (overRack && !fingerOver && !ghostOver) {
       zoom.pauseDragFocus?.();
       return;
     }
-    if (!ghostOver && !pointerOver) {
+    if (!fingerOver && !ghostOver) {
       zoom.pauseDragFocus?.();
       return;
     }
 
-    const focusX = ghostOver ? center.x : event.clientX;
-    const focusY = ghostOver ? center.y : event.clientY;
-    zoom.updateDragFocus(focusX, focusY);
+    zoom.updateDragFocus(fingerX, fingerY);
   }
 
   function engageDrag(event) {
@@ -168,6 +169,68 @@
     syncBoardDragFocus(event, false);
   }
 
+  function flushPointerMove(event) {
+    window.GlobbleRackReorder?.movePointerDrag(event.clientX, event.clientY);
+
+    const rackEl = options?.rackEl;
+    const reorder = window.GlobbleRackReorder;
+    // Drop / rack probes use the finger so placement matches where you are pointing.
+    const probe = { clientX: event.clientX, clientY: event.clientY };
+    let overRack = false;
+
+    if (rackEl) {
+      const rackRect = rackEl.getBoundingClientRect();
+      overRack =
+        probe.clientX >= rackRect.left &&
+        probe.clientX <= rackRect.right &&
+        probe.clientY >= rackRect.top &&
+        probe.clientY <= rackRect.bottom;
+    }
+
+    syncBoardDragFocus(event, overRack);
+
+    if (!rackEl || !reorder) {
+      return;
+    }
+
+    if (!overRack) {
+      rackEl.classList.remove("rack-reorder-active");
+      reorder.clearReorderPreview?.(rackEl);
+      rackEl.querySelectorAll(".rack-slot").forEach((el) => {
+        el.classList.remove("rack-insert-before", "rack-slot-return-target");
+      });
+      return;
+    }
+
+    const fromRack = options.getDraggingRackIndex?.();
+    const fromBoard = options.getDraggingBoardPos?.();
+
+    if (fromBoard && options.canReturnToRack?.()) {
+      reorder.clearReorderPreview?.(rackEl);
+      rackEl.classList.add("rack-reorder-active");
+      const slotIndex = reorder.getRackSlotAtPoint(probe, rackEl);
+      rackEl.querySelectorAll(".rack-slot").forEach((el, index) => {
+        el.classList.toggle("rack-slot-return-target", index === slotIndex);
+      });
+      return;
+    }
+
+    if (fromRack !== null && fromRack !== undefined && options.canReorder?.()) {
+      rackEl.classList.add("rack-reorder-active");
+      const toIndex = reorder.getDropIndex(probe, rackEl, fromRack);
+      if (typeof reorder.previewReorder === "function") {
+        reorder.previewReorder(rackEl, fromRack, toIndex);
+      } else {
+        rackEl.querySelectorAll(".rack-slot").forEach((el, index) => {
+          el.classList.toggle(
+            "rack-insert-before",
+            index === toIndex && fromRack !== toIndex
+          );
+        });
+      }
+    }
+  }
+
   function onPointerMove(event) {
     if (pending && event.pointerId === pending.pointerId) {
       const dx = event.clientX - pending.startX;
@@ -183,55 +246,31 @@
       return;
     }
 
-    event.preventDefault();
-    window.GlobbleRackReorder?.movePointerDrag(event.clientX, event.clientY);
-
-    const rackEl = options?.rackEl;
-    const reorder = window.GlobbleRackReorder;
-    let overRack = false;
-
-    if (rackEl) {
-      const rackRect = rackEl.getBoundingClientRect();
-      overRack =
-        event.clientX >= rackRect.left &&
-        event.clientX <= rackRect.right &&
-        event.clientY >= rackRect.top &&
-        event.clientY <= rackRect.bottom;
+    if (event.cancelable) {
+      event.preventDefault();
     }
 
-    syncBoardDragFocus(event, overRack);
-
-    if (!rackEl || !reorder) {
+    latestMoveEvent = event;
+    if (moveRafId != null) {
       return;
     }
+    moveRafId = requestAnimationFrame(() => {
+      moveRafId = null;
+      const latest = latestMoveEvent;
+      latestMoveEvent = null;
+      if (!latest || !pointerDragging) {
+        return;
+      }
+      flushPointerMove(latest);
+    });
+  }
 
-    if (!overRack) {
-      rackEl.classList.remove("rack-reorder-active");
-      rackEl.querySelectorAll(".rack-slot").forEach((el) => {
-        el.classList.remove("rack-insert-before", "rack-slot-return-target");
-      });
-      return;
+  function cancelScheduledMove() {
+    if (moveRafId != null) {
+      cancelAnimationFrame(moveRafId);
+      moveRafId = null;
     }
-
-    const fromRack = options.getDraggingRackIndex?.();
-    const fromBoard = options.getDraggingBoardPos?.();
-
-    if (fromBoard && options.canReturnToRack?.()) {
-      rackEl.classList.add("rack-reorder-active");
-      const slotIndex = reorder.getRackSlotAtPoint(event, rackEl);
-      rackEl.querySelectorAll(".rack-slot").forEach((el, index) => {
-        el.classList.toggle("rack-slot-return-target", index === slotIndex);
-      });
-      return;
-    }
-
-    if (fromRack !== null && fromRack !== undefined && options.canReorder?.()) {
-      rackEl.classList.add("rack-reorder-active");
-      const toIndex = reorder.getDropIndex(event, rackEl, fromRack);
-      rackEl.querySelectorAll(".rack-slot").forEach((el, index) => {
-        el.classList.toggle("rack-insert-before", index === toIndex && fromRack !== toIndex);
-      });
-    }
+    latestMoveEvent = null;
   }
 
   async function onPointerUp(event) {
@@ -246,16 +285,19 @@
 
     pointerDragging = false;
     suppressClickUntil = Date.now() + 80;
+    cancelScheduledMove();
 
-    // The drag ghost is intentionally lifted above a finger on touch screens.
-    // Resolve the drop from the visible tile center, not the obscured fingertip.
-    const center = getGhostCenter(event.clientX, event.clientY);
-    const dropX = center.x;
-    const dropY = center.y;
+    // One last sync so the ghost matches the release point before we resolve the drop.
+    window.GlobbleRackReorder?.movePointerDrag(event.clientX, event.clientY);
+
+    // Drop under the finger — not the lifted ghost center.
+    const dropX = event.clientX;
+    const dropY = event.clientY;
 
     try {
       await options.onDrop(dropX, dropY);
     } finally {
+      window.GlobbleRackReorder?.clearReorderPreview?.(options?.rackEl);
       window.GlobbleBoardZoom?.endDragFocus?.({ restore: false });
       options.onDragEnd();
     }

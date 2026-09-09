@@ -3,11 +3,24 @@ const rackEl = document.getElementById("rack");
 const messageEl = document.getElementById("message");
 const turnInfoEl = document.getElementById("turnInfo");
 const bagCountEl = document.getElementById("bagCount");
+const pendingTurnScoreEl = document.getElementById("pendingTurnScore");
+const playableWordsCountEl = document.getElementById("playableWordsCount");
 const player1ScoreEl = document.getElementById("player1Score");
 const player2ScoreEl = document.getElementById("player2Score");
 const roomDisplayEl = document.getElementById("roomDisplay");
 const connStatusEl = document.getElementById("connStatus");
 const lobbyHintEl = document.getElementById("lobbyHint");
+
+const gameChatRootEl = document.getElementById("gameChatRoot");
+const gameChatBubbleBtn = document.getElementById("gameChatBubbleBtn");
+const gameChatPanelEl = document.getElementById("gameChatPanel");
+const gameChatCloseBtn = document.getElementById("gameChatCloseBtn");
+const gameChatOptInEl = document.getElementById("gameChatOptIn");
+const gameChatHintEl = document.getElementById("gameChatHint");
+const gameChatLogEl = document.getElementById("gameChatLog");
+const gameChatFormEl = document.getElementById("gameChatForm");
+const gameChatInputEl = document.getElementById("gameChatInput");
+const gameChatUnreadEl = document.getElementById("gameChatUnread");
 
 const submitTurnBtn = document.getElementById("submitTurnBtn");
 const recallTilesBtn = document.getElementById("recallTilesBtn");
@@ -17,6 +30,7 @@ const lobbyPanelEl = document.getElementById("lobbyPanel");
 
 const wsUrl = `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`;
 const RACK_SIZE = 16;
+const FULL_RACK_BONUS = Math.round((50 / 7) * RACK_SIZE);
 
 const SESSION_KEY = "globble-online-game-session-v3";
 
@@ -76,6 +90,13 @@ let reconnectAttempts = 0;
 let matchUsernames = [];
 /** @type {object | null} */
 let lastConfirmedGameState = null;
+let myPlayerIndex = null;
+let chatYouEnabled = false;
+let chatBothEnabled = false;
+/** @type {Array<{id:string,fromPlayerIndex:number,username:string,text:string,at:number}>} */
+let chatMessages = [];
+let chatPanelOpen = false;
+let chatUnreadCount = 0;
 
 function cloneGameState(state) {
   if (!state) {
@@ -106,6 +127,204 @@ function sendAction(payload) {
     return;
   }
   ws.send(JSON.stringify(payload));
+}
+
+function setGameChatVisible(visible) {
+  if (!gameChatRootEl) {
+    return;
+  }
+  gameChatRootEl.hidden = !visible;
+  if (!visible) {
+    setChatPanelOpen(false);
+  }
+}
+
+function setChatPanelOpen(open) {
+  chatPanelOpen = Boolean(open);
+  if (gameChatPanelEl) {
+    gameChatPanelEl.hidden = !chatPanelOpen;
+    gameChatPanelEl.classList.toggle("is-open", chatPanelOpen);
+  }
+  if (gameChatBubbleBtn) {
+    gameChatBubbleBtn.setAttribute("aria-expanded", chatPanelOpen ? "true" : "false");
+    gameChatBubbleBtn.classList.toggle("is-open", chatPanelOpen);
+    gameChatBubbleBtn.setAttribute(
+      "aria-label",
+      chatPanelOpen ? "Close game chat" : "Open game chat"
+    );
+    gameChatBubbleBtn.title = chatPanelOpen ? "Close chat" : "Open chat";
+  }
+  if (chatPanelOpen) {
+    chatUnreadCount = 0;
+    updateChatUnreadBadge();
+    if (chatYouEnabled && chatBothEnabled && gameChatInputEl) {
+      gameChatInputEl.focus();
+    }
+  }
+}
+
+function updateChatUnreadBadge() {
+  if (!gameChatUnreadEl) {
+    return;
+  }
+  if (chatUnreadCount > 0) {
+    gameChatUnreadEl.hidden = false;
+    gameChatUnreadEl.textContent = chatUnreadCount > 9 ? "9+" : String(chatUnreadCount);
+  } else {
+    gameChatUnreadEl.hidden = true;
+    gameChatUnreadEl.textContent = "0";
+  }
+}
+
+function renderChatLog() {
+  if (!gameChatLogEl) {
+    return;
+  }
+  gameChatLogEl.replaceChildren();
+  if (!chatYouEnabled) {
+    return;
+  }
+  chatMessages.forEach((message) => {
+    gameChatLogEl.appendChild(buildChatLineEl(message));
+  });
+  gameChatLogEl.scrollTop = gameChatLogEl.scrollHeight;
+}
+
+function buildChatLineEl(message) {
+  const line = document.createElement("div");
+  const isSelf = typeof myPlayerIndex === "number" && message.fromPlayerIndex === myPlayerIndex;
+  line.className = `game-chat-line${isSelf ? " is-self" : ""}`;
+  const meta = document.createElement("div");
+  meta.className = "game-chat-line-meta";
+  meta.textContent = isSelf ? "You" : message.username || "Opponent";
+  const text = document.createElement("div");
+  text.className = "game-chat-line-text";
+  text.textContent = message.text || "";
+  line.append(meta, text);
+  return line;
+}
+
+function updateChatUi() {
+  if (gameChatBubbleBtn) {
+    gameChatBubbleBtn.classList.toggle("is-joined", chatYouEnabled);
+  }
+  if (gameChatOptInEl && gameChatOptInEl.checked !== chatYouEnabled) {
+    gameChatOptInEl.checked = chatYouEnabled;
+  }
+  if (gameChatFormEl) {
+    gameChatFormEl.hidden = !(chatYouEnabled && chatBothEnabled);
+  }
+  if (gameChatLogEl) {
+    gameChatLogEl.hidden = !chatYouEnabled;
+  }
+  if (gameChatHintEl) {
+    if (!chatYouEnabled) {
+      gameChatHintEl.textContent =
+        "Opt in to message your opponent. Chat stays in this game only.";
+    } else if (!chatBothEnabled) {
+      gameChatHintEl.textContent = "Waiting for your opponent to join chat…";
+    } else {
+      gameChatHintEl.textContent = "Live with your opponent. Leave anytime with the checkbox.";
+    }
+  }
+  renderChatLog();
+  updateChatUnreadBadge();
+}
+
+function applyChatStatus(msg) {
+  chatYouEnabled = Boolean(msg.youEnabled);
+  chatBothEnabled = Boolean(msg.bothEnabled);
+  chatMessages = Array.isArray(msg.messages) ? msg.messages.slice() : [];
+  if (!chatYouEnabled) {
+    chatUnreadCount = 0;
+  }
+  updateChatUi();
+}
+
+function appendChatMessage(message, { fromServer = false } = {}) {
+  if (!message?.id) {
+    return;
+  }
+  if (chatMessages.some((entry) => entry.id === message.id)) {
+    return;
+  }
+  chatMessages.push(message);
+  if (chatMessages.length > 40) {
+    chatMessages = chatMessages.slice(-40);
+  }
+  const isSelf = typeof myPlayerIndex === "number" && message.fromPlayerIndex === myPlayerIndex;
+  if (fromServer && !isSelf && !chatPanelOpen && chatYouEnabled) {
+    chatUnreadCount += 1;
+  }
+  if (gameChatLogEl && chatYouEnabled) {
+    gameChatLogEl.appendChild(buildChatLineEl(message));
+    gameChatLogEl.scrollTop = gameChatLogEl.scrollHeight;
+  }
+  updateChatUnreadBadge();
+}
+
+function resetChatState() {
+  chatYouEnabled = false;
+  chatBothEnabled = false;
+  chatMessages = [];
+  chatUnreadCount = 0;
+  chatPanelOpen = false;
+  updateChatUi();
+  setChatPanelOpen(false);
+}
+
+function bindGameChatUi() {
+  if (!gameChatBubbleBtn) {
+    return;
+  }
+  gameChatBubbleBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setChatPanelOpen(!chatPanelOpen);
+  });
+  gameChatCloseBtn?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setChatPanelOpen(false);
+  });
+  gameChatOptInEl?.addEventListener("change", () => {
+    const enabled = Boolean(gameChatOptInEl.checked);
+    sendAction({ type: "chatOptIn", enabled });
+  });
+  gameChatFormEl?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (!gameChatInputEl) {
+      return;
+    }
+    const text = gameChatInputEl.value.trim();
+    if (!text) {
+      return;
+    }
+    sendAction({ type: "chatSend", text });
+    gameChatInputEl.value = "";
+    gameChatInputEl.focus();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && chatPanelOpen) {
+      setChatPanelOpen(false);
+    }
+  });
+  document.addEventListener(
+    "pointerdown",
+    (event) => {
+      if (!chatPanelOpen || !gameChatRootEl) {
+        return;
+      }
+      const target = event.target;
+      if (target instanceof Node && gameChatRootEl.contains(target)) {
+        return;
+      }
+      setChatPanelOpen(false);
+    },
+    true
+  );
+  // Start closed; bubble toggles open/closed.
+  setChatPanelOpen(false);
 }
 
 function connectThen(afterOpen) {
@@ -220,6 +439,9 @@ function onWsMessage(ev) {
     renderAll();
   } else if (msg.type === "joined") {
     if (msg.gameId) {
+      if (typeof msg.playerIndex === "number") {
+        myPlayerIndex = msg.playerIndex;
+      }
       if (Array.isArray(msg.usernames) && msg.usernames.length) {
         matchUsernames = msg.usernames.slice();
       }
@@ -235,18 +457,31 @@ function onWsMessage(ev) {
       if (lobbyPanelEl) {
         lobbyPanelEl.hidden = true;
       }
+      setGameChatVisible(true);
+    }
+  } else if (msg.type === "chatStatus") {
+    applyChatStatus(msg);
+  } else if (msg.type === "chatMessage") {
+    if (msg.message) {
+      appendChatMessage(msg.message, { fromServer: true });
     }
   } else if (msg.type === "error") {
     rackShufflePendingAnimation = false;
     shufflePrevRack = null;
     pendingTileReturn = null;
-    if (gameState?.isMyTurn) {
-      revertOptimisticState();
-    }
     if (msg.error && msg.error.startsWith("Invalid word")) {
       window.GlobbleInvalidWordToast?.show(msg.error);
       messageEl.textContent = "";
+      // Mirror practice: pull pending tiles back onto the rack immediately.
+      // Server also recalls and will broadcast; don't revert to the old pending board.
+      if (applyOptimisticRecall()) {
+        rememberConfirmedState(gameState);
+        renderAll();
+      }
     } else {
+      if (gameState?.isMyTurn) {
+        revertOptimisticState();
+      }
       messageEl.textContent = msg.error || "Error";
     }
   }
@@ -623,9 +858,256 @@ function renderBagCount() {
   }
   if (!gameState || gameState.lobby || typeof gameState.bagCount !== "number") {
     bagCountEl.textContent = "";
+    schedulePlayableWordCount();
     return;
   }
-  bagCountEl.textContent = `${gameState.bagCount} left in the bag`;
+  bagCountEl.textContent =
+    gameState.bagCount === 1 ? "1 tile left" : `${gameState.bagCount} tiles left`;
+  schedulePlayableWordCount();
+}
+
+function getPendingTurnPlacements() {
+  if (!gameState?.board) {
+    return [];
+  }
+  return (gameState.pendingPlacements || []).map(({ row, col, rackIndex }) => ({
+    row,
+    col,
+    rackIndex,
+    tile: gameState.board[row]?.[col]?.tile ?? null
+  }));
+}
+
+function scorePlacedTilesOnly(turnPlacements) {
+  const board = gameState?.board;
+  if (!board) {
+    return 0;
+  }
+  let total = 0;
+  turnPlacements.forEach(({ row, col, tile }) => {
+    if (!tile) {
+      return;
+    }
+    let letterValue = tile.value;
+    const premium = board[row][col].premium;
+    if (premium === "dl") {
+      letterValue *= 2;
+    } else if (premium === "tl") {
+      letterValue *= 3;
+    }
+    total += letterValue;
+  });
+  return total;
+}
+
+function computeTurnScore(words, turnPlacements) {
+  const board = gameState?.board;
+  if (!board) {
+    return 0;
+  }
+  const newKeys = new Set(turnPlacements.map(({ row, col }) => `${row},${col}`));
+  let total = 0;
+
+  words.forEach((word) => {
+    let wordBase = 0;
+    let wordMultiplier = 1;
+
+    word.cells.forEach(({ row, col, tile }) => {
+      if (!tile) {
+        return;
+      }
+      let letterValue = tile.value;
+      if (!tile.locked) {
+        const premium = board[row][col].premium;
+        if (premium === "dl") {
+          letterValue *= 2;
+        } else if (premium === "tl") {
+          letterValue *= 3;
+        } else if (premium === "dw") {
+          wordMultiplier *= 2;
+        } else if (premium === "tw") {
+          wordMultiplier *= 3;
+        } else if (premium === "qw") {
+          wordMultiplier *= 4;
+        }
+      }
+      wordBase += letterValue;
+    });
+
+    total += wordBase * wordMultiplier;
+  });
+
+  if (turnPlacements.length === RACK_SIZE) {
+    total += FULL_RACK_BONUS;
+  }
+
+  return total;
+}
+
+function renderPendingTurnScore() {
+  if (!pendingTurnScoreEl) {
+    return;
+  }
+
+  pendingTurnScoreEl.classList.remove("is-pending", "is-valid");
+
+  if (!gameState || gameState.lobby) {
+    pendingTurnScoreEl.textContent = "";
+    return;
+  }
+
+  const turnPlacements = getPendingTurnPlacements();
+  if (turnPlacements.length === 0) {
+    pendingTurnScoreEl.textContent = "";
+    return;
+  }
+
+  const validation = window.GlobblePendingWordGlow?.validatePendingTurn?.(
+    gameState.board,
+    turnPlacements,
+    onlineDictionary
+  );
+  if (validation?.ok) {
+    pendingTurnScoreEl.textContent = String(computeTurnScore(validation.words, turnPlacements));
+    pendingTurnScoreEl.classList.add("is-valid");
+    return;
+  }
+
+  pendingTurnScoreEl.textContent = String(scorePlacedTilesOnly(turnPlacements));
+  pendingTurnScoreEl.classList.add("is-pending");
+}
+
+let playableWordCountJobId = 0;
+let playableWordCountWorker = null;
+
+function formatPlayableWordCount(count) {
+  return (
+    window.GlobblePlayableWords?.formatPlayableWordBucket?.(count) ??
+    (typeof count === "number" && Number.isFinite(count) ? `${count} words possible` : "… words possible")
+  );
+}
+
+function boardSnapshotForPlayableCount() {
+  const board = gameState?.board || [];
+  return board.map((row) =>
+    row.map((cell) => ({
+      premium: cell.premium,
+      tile: cell.tile
+        ? {
+            letter: cell.tile.letter,
+            value: cell.tile.value,
+            isBlank: !!cell.tile.isBlank,
+            locked: !!cell.tile.locked
+          }
+        : null
+    }))
+  );
+}
+
+function rackSnapshotForPlayableCount() {
+  const rack = gameState?.myRack ?? [];
+  return rack.map((tile) =>
+    tile
+      ? {
+          letter: tile.letter,
+          value: tile.value,
+          isBlank: !!tile.isBlank
+        }
+      : null
+  );
+}
+
+function runPlayableWordCountOnMainThread(jobId) {
+  window.setTimeout(() => {
+    if (jobId !== playableWordCountJobId || !playableWordsCountEl || !gameState?.board) {
+      return;
+    }
+    const board = gameState.board;
+    const count = window.GlobblePlayableWords?.countPlayableWords?.({
+      board,
+      rack: gameState.myRack ?? [],
+      dictionary: onlineDictionary,
+      startSquare: startSquare(board.length, board[0]?.length ?? board.length)
+    });
+    if (jobId !== playableWordCountJobId || !playableWordsCountEl) {
+      return;
+    }
+    playableWordsCountEl.textContent = formatPlayableWordCount(count);
+  }, 0);
+}
+
+function getPlayableWordCountWorker() {
+  if (playableWordCountWorker || typeof Worker === "undefined") {
+    return playableWordCountWorker;
+  }
+  try {
+    playableWordCountWorker = new Worker("./playable-word-count-worker.js");
+    playableWordCountWorker.onmessage = (event) => {
+      const { jobId, count, error } = event.data || {};
+      if (jobId !== playableWordCountJobId || !playableWordsCountEl) {
+        return;
+      }
+      if (error) {
+        runPlayableWordCountOnMainThread(jobId);
+        return;
+      }
+      playableWordsCountEl.textContent = formatPlayableWordCount(count);
+    };
+    playableWordCountWorker.onerror = () => {
+      const jobId = playableWordCountJobId;
+      playableWordCountWorker?.terminate();
+      playableWordCountWorker = null;
+      runPlayableWordCountOnMainThread(jobId);
+    };
+  } catch {
+    playableWordCountWorker = null;
+  }
+  return playableWordCountWorker;
+}
+
+function schedulePlayableWordCount() {
+  if (!playableWordsCountEl) {
+    return;
+  }
+
+  if (!gameState || gameState.lobby || gameState.gameOver) {
+    playableWordsCountEl.textContent = "";
+    return;
+  }
+
+  // Freeze count for the turn once tiles leave the rack; refresh after submit/recall.
+  if ((gameState.pendingPlacements || []).length > 0) {
+    return;
+  }
+
+  const rack = gameState.myRack ?? [];
+  if (!rack.some(Boolean)) {
+    playableWordsCountEl.textContent = formatPlayableWordCount(0);
+    return;
+  }
+
+  const board = gameState.board;
+  if (!board?.length) {
+    playableWordsCountEl.textContent = "";
+    return;
+  }
+
+  const jobId = ++playableWordCountJobId;
+  playableWordsCountEl.textContent = formatPlayableWordCount(NaN);
+  const payload = {
+    jobId,
+    board: boardSnapshotForPlayableCount(),
+    rack: rackSnapshotForPlayableCount(),
+    startSquare: startSquare(board.length, board[0]?.length ?? board.length)
+  };
+
+  const worker = getPlayableWordCountWorker();
+  if (worker) {
+    worker.postMessage(payload);
+    return;
+  }
+
+  runPlayableWordCountOnMainThread(jobId);
 }
 
 function renderAll() {
@@ -634,13 +1116,27 @@ function renderAll() {
   }
   if (gameState.lobby) {
     renderLobby();
+    setGameChatVisible(false);
+    resetChatState();
+    if (pendingTurnScoreEl) {
+      pendingTurnScoreEl.textContent = "";
+      pendingTurnScoreEl.classList.remove("is-pending", "is-valid");
+    }
+    if (playableWordsCountEl) {
+      playableWordsCountEl.textContent = "";
+    }
+    if (bagCountEl) {
+      bagCountEl.textContent = "";
+    }
     return;
   }
 
   setLobbyPanelVisible(false);
+  setGameChatVisible(true);
   roomDisplayEl.textContent = "";
   renderBoard();
   renderBagCount();
+  renderPendingTurnScore();
   renderRack();
   if (pendingTileReturn) {
     void runPendingTileReturn();
@@ -889,6 +1385,7 @@ function onAnyDragEnd() {
   }
   if (window.GlobbleRackReorder) {
     window.GlobbleRackReorder.finishDragGhost();
+    window.GlobbleRackReorder.clearReorderPreview?.(rackEl);
   }
   window.GlobbleBoardZoom?.endDragFocus?.({ restore: false });
   rackEl.classList.remove("rack-reorder-active");
@@ -1206,6 +1703,7 @@ async function handlePointerTileDrop(clientX, clientY) {
       rackEl,
       draggingRackIndex
     );
+    window.GlobbleRackReorder.clearReorderPreview?.(rackEl);
     if (draggingRackIndex !== toIndex) {
       sendAction({ type: "reorderRack", fromIndex: draggingRackIndex, toIndex });
     }
@@ -1398,20 +1896,25 @@ function bindRackEvents() {
 
 bindBoardEvents();
 bindRackEvents();
+bindGameChatUi();
+setGameChatVisible(false);
 
 function applyStartupRouting() {
   const params = new URLSearchParams(location.search);
   const gameId = (params.get("game") || "").trim();
+  const saved = loadPersistSession();
+  if (typeof saved?.playerIndex === "number") {
+    myPlayerIndex = saved.playerIndex;
+  }
   if (gameId) {
     messageEl.textContent = "Opening match…";
     enterGame(gameId);
     history.replaceState({}, "", location.pathname);
     return true;
   }
-  const s = loadPersistSession();
-  if (s?.gameId && window.GlobbleAccounts?.getToken?.()) {
+  if (saved?.gameId && window.GlobbleAccounts?.getToken?.()) {
     messageEl.textContent = "Reconnecting to your match…";
-    enterGame(s.gameId);
+    enterGame(saved.gameId);
     return true;
   }
   return false;
@@ -1447,6 +1950,12 @@ if (window.GlobbleRackReorder) {
         rack &&
         window.GlobbleRackReorder?.moveRackSlots(rack, fromIndex, toIndex, RACK_SIZE)
       ) {
+        window.GlobbleRackReorder.remapRackIndicesAfterMove?.(
+          gameState.pendingPlacements || [],
+          fromIndex,
+          toIndex,
+          RACK_SIZE
+        );
         selectedRackIndex = toIndex;
         renderRack();
       }
