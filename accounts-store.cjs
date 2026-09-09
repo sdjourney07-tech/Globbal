@@ -83,6 +83,32 @@ function isValidDisplayName(name) {
   return value.length >= 1 && value.length <= 40;
 }
 
+function normalizeDisplayNameKey(name) {
+  return normalizeDisplayName(name).toLowerCase();
+}
+
+function usernameTakenError(message) {
+  const err = new Error(
+    message || "That name is unavailable. Names can only be claimed once and cannot be reused."
+  );
+  err.code = "USERNAME_TAKEN";
+  return err;
+}
+
+function displayNameTakenError(message) {
+  const err = new Error(
+    message || "That display name is unavailable. Choose a name that has never been used."
+  );
+  err.code = "DISPLAY_NAME_TAKEN";
+  return err;
+}
+
+function badUsernameError() {
+  const err = new Error("Username must be 3–20 characters: letters, numbers, underscore.");
+  err.code = "BAD_USERNAME";
+  return err;
+}
+
 async function hashPassword(password) {
   const salt = crypto.randomBytes(16);
   const derived = await scrypt(String(password), salt, 64);
@@ -116,7 +142,91 @@ function newId(prefix) {
 }
 
 function emptyFileData() {
-  return { users: [], sessions: [], games: [] };
+  return { users: [], sessions: [], games: [], reservedUsernames: [] };
+}
+
+function ensureFileReservedUsernames(data) {
+  if (!Array.isArray(data.reservedUsernames)) {
+    data.reservedUsernames = [];
+  }
+  const seen = new Set(
+    data.reservedUsernames.map((row) => normalizeUsername(row && row.usernameKey)).filter(Boolean)
+  );
+  for (const user of data.users) {
+    const key = normalizeUsername(user.usernameKey || user.username);
+    if (!key || seen.has(key)) {
+      continue;
+    }
+    data.reservedUsernames.push({
+      usernameKey: key,
+      reservedAt: user.createdAt || nowIso(),
+      userId: user._id || null
+    });
+    seen.add(key);
+  }
+  return data;
+}
+
+function fileUsernameEverUsed(data, usernameKey) {
+  const key = normalizeUsername(usernameKey);
+  if (!key) {
+    return false;
+  }
+  return data.reservedUsernames.some((row) => row.usernameKey === key);
+}
+
+function reserveFileUsername(data, usernameKey, userId) {
+  const key = normalizeUsername(usernameKey);
+  if (!key || fileUsernameEverUsed(data, key)) {
+    return;
+  }
+  data.reservedUsernames.push({
+    usernameKey: key,
+    reservedAt: nowIso(),
+    userId: userId || null
+  });
+}
+
+function rewriteFileGameUsernames(data, userId, nextUsername) {
+  const uid = String(userId);
+  const name = normalizeUsername(nextUsername);
+  for (const game of data.games) {
+    const playerIds = Array.isArray(game.playerIds) ? game.playerIds.map(String) : [];
+    const index = playerIds.indexOf(uid);
+    if (index < 0) {
+      continue;
+    }
+    if (!Array.isArray(game.usernames)) {
+      game.usernames = ["Player 1", "Player 2"];
+    }
+    game.usernames[index] = name;
+    game.updatedAt = nowIso();
+  }
+}
+
+function assertFileDisplayNameAvailable(data, displayName, userId) {
+  const next = normalizeDisplayName(displayName);
+  if (!next) {
+    return;
+  }
+  const displayKey = normalizeDisplayNameKey(next);
+  const asUsername = normalizeUsername(next);
+  const own = data.users.find((u) => u._id === userId);
+  const ownUsername = normalizeUsername(own && (own.usernameKey || own.username));
+
+  for (const user of data.users) {
+    if (user._id === userId) {
+      continue;
+    }
+    if (user.displayName && normalizeDisplayNameKey(user.displayName) === displayKey) {
+      throw displayNameTakenError();
+    }
+  }
+
+  // Block looking like any login name that was ever claimed (except your own current username).
+  if (/^[a-z0-9_]+$/.test(asUsername) && asUsername !== ownUsername && fileUsernameEverUsed(data, asUsername)) {
+    throw displayNameTakenError();
+  }
 }
 
 function readFileData() {
@@ -126,11 +236,13 @@ function readFileData() {
     }
     const raw = fs.readFileSync(FILE_STORE, "utf8");
     const parsed = JSON.parse(raw);
-    return {
+    const data = {
       users: Array.isArray(parsed.users) ? parsed.users : [],
       sessions: Array.isArray(parsed.sessions) ? parsed.sessions : [],
-      games: Array.isArray(parsed.games) ? parsed.games : []
+      games: Array.isArray(parsed.games) ? parsed.games : [],
+      reservedUsernames: Array.isArray(parsed.reservedUsernames) ? parsed.reservedUsernames : []
     };
+    return ensureFileReservedUsernames(data);
   } catch {
     return emptyFileData();
   }
@@ -148,10 +260,11 @@ function createFileBackend() {
       const data = readFileData();
       const key = normalizeUsername(username);
       const emailKey = normalizeOptionalEmail(email);
-      if (data.users.some((u) => u.usernameKey === key)) {
-        const err = new Error("Username already taken.");
-        err.code = "USERNAME_TAKEN";
-        throw err;
+      if (!isValidUsername(key)) {
+        throw badUsernameError();
+      }
+      if (fileUsernameEverUsed(data, key) || data.users.some((u) => u.usernameKey === key)) {
+        throw usernameTakenError();
       }
       if (emailKey && data.users.some((u) => u.emailKey === emailKey)) {
         const err = new Error("That email is already linked to an account.");
@@ -168,6 +281,7 @@ function createFileBackend() {
         createdAt: nowIso()
       };
       data.users.push(user);
+      reserveFileUsername(data, key, user._id);
       writeFileData(data);
       return publicUser(user);
     },
@@ -416,13 +530,29 @@ function createFileBackend() {
         ...buildUserProfile(userId, data.games)
       };
     },
-    async updateUserProfile(userId, { displayName, email }) {
+    async updateUserProfile(userId, { displayName, email, username }) {
       const data = readFileData();
       const user = data.users.find((u) => u._id === userId);
       if (!user) {
         const err = new Error("Account not found.");
         err.code = "NOT_FOUND";
         throw err;
+      }
+      if (username !== undefined) {
+        const next = normalizeUsername(username);
+        if (!isValidUsername(next)) {
+          throw badUsernameError();
+        }
+        const current = normalizeUsername(user.usernameKey || user.username);
+        if (next !== current) {
+          if (fileUsernameEverUsed(data, next) || data.users.some((u) => u.usernameKey === next)) {
+            throw usernameTakenError();
+          }
+          user.username = next;
+          user.usernameKey = next;
+          reserveFileUsername(data, next, userId);
+          rewriteFileGameUsernames(data, userId, next);
+        }
       }
       if (displayName !== undefined) {
         if (!isValidDisplayName(displayName)) {
@@ -431,6 +561,7 @@ function createFileBackend() {
           throw err;
         }
         const next = normalizeDisplayName(displayName);
+        assertFileDisplayNameAvailable(data, next, userId);
         user.displayName = next || null;
       }
       if (email !== undefined) {
@@ -477,14 +608,120 @@ async function createMongoBackend(uri) {
   const users = db.collection("users");
   const sessions = db.collection("sessions");
   const games = db.collection("games");
+  const reservedUsernames = db.collection("reserved_usernames");
   await users.createIndex({ usernameKey: 1 }, { unique: true });
   await users.createIndex(
     { emailKey: 1 },
     { unique: true, partialFilterExpression: { emailKey: { $type: "string" } } }
   );
+  await reservedUsernames.createIndex({ usernameKey: 1 }, { unique: true });
   await sessions.createIndex({ tokenHash: 1 }, { unique: true });
   await sessions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
   await games.createIndex({ playerIds: 1, status: 1 });
+
+  async function seedReservedUsernames() {
+    const cursor = users.find(
+      {},
+      { projection: { usernameKey: 1, username: 1, createdAt: 1 } }
+    );
+    for await (const user of cursor) {
+      const key = normalizeUsername(user.usernameKey || user.username);
+      if (!key) {
+        continue;
+      }
+      await reservedUsernames.updateOne(
+        { usernameKey: key },
+        {
+          $setOnInsert: {
+            usernameKey: key,
+            reservedAt: user.createdAt || new Date(),
+            userId: user._id
+          }
+        },
+        { upsert: true }
+      );
+    }
+  }
+  await seedReservedUsernames();
+
+  async function usernameEverUsed(usernameKey) {
+    const key = normalizeUsername(usernameKey);
+    if (!key) {
+      return false;
+    }
+    const row = await reservedUsernames.findOne({ usernameKey: key });
+    return Boolean(row);
+  }
+
+  async function claimUsername(usernameKey, userId) {
+    const key = normalizeUsername(usernameKey);
+    if (!key) {
+      throw badUsernameError();
+    }
+    try {
+      await reservedUsernames.insertOne({
+        usernameKey: key,
+        reservedAt: new Date(),
+        userId: userId || null
+      });
+    } catch (err) {
+      if (err && err.code === 11000) {
+        throw usernameTakenError();
+      }
+      throw err;
+    }
+  }
+
+  async function rewriteGameUsernames(userId, nextUsername) {
+    const id = oid(userId);
+    if (!id) {
+      return;
+    }
+    const name = normalizeUsername(nextUsername);
+    const activeGames = await games
+      .find({ playerIds: id })
+      .project({ playerIds: 1, usernames: 1 })
+      .toArray();
+    for (const game of activeGames) {
+      const playerIds = Array.isArray(game.playerIds) ? game.playerIds.map(String) : [];
+      const index = playerIds.indexOf(String(userId));
+      if (index < 0) {
+        continue;
+      }
+      const usernames = Array.isArray(game.usernames) ? game.usernames.slice() : ["Player 1", "Player 2"];
+      usernames[index] = name;
+      await games.updateOne(
+        { _id: game._id },
+        { $set: { usernames, updatedAt: nowIso() } }
+      );
+    }
+  }
+
+  async function assertDisplayNameAvailable(displayName, userId, ownUsernameKey) {
+    const next = normalizeDisplayName(displayName);
+    if (!next) {
+      return;
+    }
+    const displayKey = normalizeDisplayNameKey(next);
+    const asUsername = normalizeUsername(next);
+    const id = oid(userId);
+    const others = await users
+      .find(id ? { _id: { $ne: id } } : {})
+      .project({ displayName: 1 })
+      .toArray();
+    for (const user of others) {
+      if (user.displayName && normalizeDisplayNameKey(user.displayName) === displayKey) {
+        throw displayNameTakenError();
+      }
+    }
+    if (
+      /^[a-z0-9_]+$/.test(asUsername) &&
+      asUsername !== normalizeUsername(ownUsernameKey) &&
+      (await usernameEverUsed(asUsername))
+    ) {
+      throw displayNameTakenError();
+    }
+  }
 
   function oid(id) {
     try {
@@ -511,6 +748,10 @@ async function createMongoBackend(uri) {
     async createUser({ username, password, email }) {
       const key = normalizeUsername(username);
       const emailKey = normalizeOptionalEmail(email);
+      if (!isValidUsername(key)) {
+        throw badUsernameError();
+      }
+      await claimUsername(key, null);
       try {
         const doc = {
           username: key,
@@ -521,6 +762,10 @@ async function createMongoBackend(uri) {
           createdAt: nowIso()
         };
         const result = await users.insertOne(doc);
+        await reservedUsernames.updateOne(
+          { usernameKey: key },
+          { $set: { userId: result.insertedId } }
+        );
         return toPublic({ ...doc, _id: result.insertedId });
       } catch (err) {
         const code = duplicateKeyCode(err);
@@ -530,9 +775,7 @@ async function createMongoBackend(uri) {
           throw e;
         }
         if (code === "USERNAME_TAKEN") {
-          const e = new Error("Username already taken.");
-          e.code = "USERNAME_TAKEN";
-          throw e;
+          throw usernameTakenError();
         }
         throw err;
       }
@@ -810,7 +1053,7 @@ async function createMongoBackend(uri) {
         ...buildUserProfile(userId, normalizedGames)
       };
     },
-    async updateUserProfile(userId, { displayName, email }) {
+    async updateUserProfile(userId, { displayName, email, username }) {
       const id = oid(userId);
       if (!id) {
         const err = new Error("Account not found.");
@@ -824,6 +1067,22 @@ async function createMongoBackend(uri) {
         throw err;
       }
       const updates = {};
+      let nextUsername = null;
+      if (username !== undefined) {
+        const next = normalizeUsername(username);
+        if (!isValidUsername(next)) {
+          throw badUsernameError();
+        }
+        const current = normalizeUsername(userDoc.usernameKey || userDoc.username);
+        if (next !== current) {
+          await claimUsername(next, id);
+          updates.username = next;
+          updates.usernameKey = next;
+          nextUsername = next;
+        }
+      }
+      const ownUsernameAfter =
+        nextUsername || normalizeUsername(userDoc.usernameKey || userDoc.username);
       if (displayName !== undefined) {
         if (!isValidDisplayName(displayName)) {
           const err = new Error("Display name must be 1–40 characters.");
@@ -831,6 +1090,7 @@ async function createMongoBackend(uri) {
           throw err;
         }
         const next = normalizeDisplayName(displayName);
+        await assertDisplayNameAvailable(next, userId, ownUsernameAfter);
         updates.displayName = next || null;
       }
       if (email !== undefined) {
@@ -850,7 +1110,13 @@ async function createMongoBackend(uri) {
           e.code = "EMAIL_TAKEN";
           throw e;
         }
+        if (code === "USERNAME_TAKEN") {
+          throw usernameTakenError();
+        }
         throw err;
+      }
+      if (nextUsername) {
+        await rewriteGameUsernames(userId, nextUsername);
       }
       const updated = await users.findOne({ _id: id });
       return profileUser({ ...updated, _id: String(updated._id) });

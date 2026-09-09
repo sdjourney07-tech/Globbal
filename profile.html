@@ -8,7 +8,7 @@
     <link rel="icon" href="./assets/favicon.ico" sizes="any" />
     <link rel="icon" href="./assets/logo-mark.svg" type="image/svg+xml" />
     <link rel="preload" href="./assets/parch2copy.png" as="image" />
-    <link rel="stylesheet" href="./styles.css?v=profile1" />
+    <link rel="stylesheet" href="./styles.css?v=history-btn2" />
     <link rel="stylesheet" href="./styles-splash.css?v=parch3" />
     <link rel="stylesheet" href="./assets/fonts/globble-logo.css" />
     <link
@@ -71,10 +71,10 @@
                 <dd id="profileGamesWon">0</dd>
               </div>
             </dl>
-            <h3 class="profile-section-title">Past opponents</h3>
-            <p id="profileOpponentsHint" class="hint">Loading…</p>
-            <ul id="profileOpponentsList" class="profile-opponents-list"></ul>
             <p id="profileError" class="landing-error" aria-live="polite"></p>
+            <button type="button" id="openGameHistoryBtn" class="profile-history-btn">
+              Game history
+            </button>
             <button type="button" id="logoutBtn" class="profile-signout">Sign out</button>
           </section>
 
@@ -112,14 +112,21 @@
           </section>
 
           <a class="landing-card" href="./practice.html">
-            <h2>Practice (solo)</h2>
+            <h2>Local</h2>
             <p>Two-player rules on one device — play on your own anytime.</p>
-            <span class="landing-cta">Open practice →</span>
+            <span class="landing-cta">Play local →</span>
+          </a>
+
+          <a class="landing-card" href="./rules.html">
+            <h2>Rules</h2>
+            <p>Scoring, turns, and how legal words work.</p>
+            <span class="landing-cta">Read the rules →</span>
           </a>
         </div>
 
         <div class="landing-actions">
-          <button type="button" id="openDictionaryBtn">Browse dictionary</button>
+          <a href="./rules.html" class="landing-action-btn" id="openRulesBtn">Rules</a>
+          <button type="button" id="openDictionaryBtn" class="landing-action-btn">Browse dictionary</button>
           <p class="hint" id="dictionaryHint">
             Modern places plus historical countries, regions, cities, and kingdoms/empires in folders at the bottom.
           </p>
@@ -165,13 +172,36 @@
       </dialog>
     </div>
 
+    <dialog id="gameHistoryDialog" class="profile-edit-dialog profile-history-dialog" aria-labelledby="gameHistoryTitle">
+      <div class="profile-history-panel">
+        <h3 id="gameHistoryTitle" class="profile-edit-title">Game history</h3>
+        <p id="profileOpponentsHint" class="hint">Loading…</p>
+        <ul id="profileOpponentsList" class="profile-opponents-list"></ul>
+        <div class="landing-auth-actions profile-edit-actions">
+          <button type="button" id="closeGameHistoryBtn">Close</button>
+        </div>
+      </div>
+    </dialog>
+
     <dialog id="editProfileDialog" class="profile-edit-dialog" aria-labelledby="editProfileTitle">
       <form id="editProfileForm" class="profile-edit-form">
         <h3 id="editProfileTitle" class="profile-edit-title">Edit profile</h3>
         <p class="hint profile-edit-hint">
-          Username <span id="editProfileUsername" class="profile-edit-username"></span> is used to sign in and cannot be changed here.
+          Usernames can only move to a name that has never been used. Old usernames stay reserved forever so accounts can’t be stolen.
         </p>
         <p id="editProfileError" class="landing-error profile-edit-error" aria-live="polite"></p>
+        <label class="profile-edit-label" for="editUsername">Username</label>
+        <input
+          id="editUsername"
+          name="username"
+          type="text"
+          maxlength="20"
+          autocomplete="username"
+          spellcheck="false"
+          pattern="[A-Za-z0-9_]{3,20}"
+          title="3–20 characters: letters, numbers, underscore"
+          required
+        />
         <label class="profile-edit-label" for="editDisplayName">Display name</label>
         <input
           id="editDisplayName"
@@ -181,6 +211,7 @@
           autocomplete="nickname"
           placeholder="How your name appears"
         />
+        <p class="hint">Display names can’t match another player’s name or any username that’s already been claimed.</p>
         <label class="profile-edit-label" for="editEmail">Email</label>
         <input
           id="editEmail"
@@ -198,7 +229,7 @@
     </dialog>
 
     <script src="./accounts-client.js"></script>
-    <script src="./accounts-profile.js?v=profile-edit2"></script>
+    <script src="./accounts-profile.js?v=history-btn1"></script>
     <script src="./dictionary-keys.js"></script>
     <script src="./dictionary-alias-sources.js"></script>
     <script>

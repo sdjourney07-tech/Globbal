@@ -18,14 +18,17 @@
   const editProfileForm = document.getElementById("editProfileForm");
   const editDisplayName = document.getElementById("editDisplayName");
   const editEmail = document.getElementById("editEmail");
-  const editProfileUsername = document.getElementById("editProfileUsername");
+  const editUsername = document.getElementById("editUsername");
   const editProfileCancelBtn = document.getElementById("editProfileCancelBtn");
   const editProfileSaveBtn = document.getElementById("editProfileSaveBtn");
   const editProfileError = document.getElementById("editProfileError");
-  const profileGamesPlayed = document.getElementById("profileGamesPlayed");
-  const profileGamesWon = document.getElementById("profileGamesWon");
+  const openGameHistoryBtn = document.getElementById("openGameHistoryBtn");
+  const gameHistoryDialog = document.getElementById("gameHistoryDialog");
+  const closeGameHistoryBtn = document.getElementById("closeGameHistoryBtn");
   const profileOpponentsHint = document.getElementById("profileOpponentsHint");
   const profileOpponentsList = document.getElementById("profileOpponentsList");
+  const profileGamesPlayed = document.getElementById("profileGamesPlayed");
+  const profileGamesWon = document.getElementById("profileGamesWon");
   const profileError = document.getElementById("profileError");
   const logoutBtn = document.getElementById("logoutBtn");
   const searchInput = document.getElementById("playerSearchInput");
@@ -102,9 +105,9 @@
       return;
     }
     setEditProfileError("");
+    if (editUsername) editUsername.value = user.username || "";
     if (editDisplayName) editDisplayName.value = user.displayName || "";
     if (editEmail) editEmail.value = user.email || "";
-    if (editProfileUsername) editProfileUsername.textContent = user.username ? `@${user.username}` : "";
     if (typeof editProfileDialog.showModal === "function") {
       editProfileDialog.showModal();
     }
@@ -125,6 +128,7 @@
     }
     try {
       const payload = {
+        username: editUsername?.value ?? "",
         displayName: editDisplayName?.value ?? "",
         email: editEmail?.value ?? ""
       };
@@ -209,15 +213,20 @@
       return;
     }
     profileOpponentsList.replaceChildren();
-    if (!opponents?.length) {
+    const count = opponents?.length || 0;
+    if (openGameHistoryBtn) {
+      openGameHistoryBtn.textContent =
+        count > 0 ? `Game history (${count})` : "Game history";
+    }
+    if (!count) {
       if (profileOpponentsHint) {
         profileOpponentsHint.textContent =
-          "No finished games yet. Challenge someone from Find a player below.";
+          "No finished games yet. Challenge someone from Find a player.";
       }
       return;
     }
     if (profileOpponentsHint) {
-      profileOpponentsHint.textContent = `${opponents.length} player${opponents.length === 1 ? "" : "s"} you've faced.`;
+      profileOpponentsHint.textContent = `${count} player${count === 1 ? "" : "s"} you've faced.`;
     }
     opponents.forEach((opponent) => {
       const li = document.createElement("li");
@@ -247,7 +256,12 @@
       challengeBtn.type = "button";
       challengeBtn.textContent = "Challenge";
       challengeBtn.addEventListener("click", () => {
-        sendChallenge(opponent.username, () => setProfileError(""));
+        sendChallenge(opponent.username, () => {
+          setProfileError("");
+          if (typeof gameHistoryDialog?.close === "function") {
+            gameHistoryDialog.close();
+          }
+        });
       });
       li.appendChild(challengeBtn);
 
@@ -437,6 +451,19 @@
   editProfileCancelBtn?.addEventListener("click", () => {
     setEditProfileError("");
     editProfileDialog?.close();
+  });
+  openGameHistoryBtn?.addEventListener("click", () => {
+    if (typeof gameHistoryDialog?.showModal === "function") {
+      gameHistoryDialog.showModal();
+    }
+  });
+  closeGameHistoryBtn?.addEventListener("click", () => {
+    gameHistoryDialog?.close();
+  });
+  gameHistoryDialog?.addEventListener("click", (event) => {
+    if (event.target === gameHistoryDialog) {
+      gameHistoryDialog.close();
+    }
   });
 
   logoutBtn?.addEventListener("click", async () => {

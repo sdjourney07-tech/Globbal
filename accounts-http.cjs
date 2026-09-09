@@ -213,6 +213,9 @@ function createAccountsHttp(store) {
         const { user } = await requireUser(req);
         const body = await readJsonBody(req);
         const patch = {};
+        if (Object.prototype.hasOwnProperty.call(body, "username")) {
+          patch.username = String(body.username ?? "");
+        }
         if (Object.prototype.hasOwnProperty.call(body, "displayName")) {
           patch.displayName = String(body.displayName ?? "");
         }
@@ -231,8 +234,12 @@ function createAccountsHttp(store) {
             sendJson(res, 400, { error: err.message });
             return true;
           }
-          if (err.code === "BAD_DISPLAY_NAME") {
+          if (err.code === "BAD_DISPLAY_NAME" || err.code === "BAD_USERNAME") {
             sendJson(res, 400, { error: err.message });
+            return true;
+          }
+          if (err.code === "USERNAME_TAKEN" || err.code === "DISPLAY_NAME_TAKEN" || err.code === "EMAIL_TAKEN") {
+            sendJson(res, 409, { error: err.message });
             return true;
           }
           throw err;
@@ -244,6 +251,9 @@ function createAccountsHttp(store) {
         const { user } = await requireUser(req);
         const body = await readJsonBody(req);
         const patch = {};
+        if (Object.prototype.hasOwnProperty.call(body, "username")) {
+          patch.username = String(body.username ?? "");
+        }
         if (Object.prototype.hasOwnProperty.call(body, "displayName")) {
           patch.displayName = String(body.displayName ?? "");
         }
@@ -262,8 +272,12 @@ function createAccountsHttp(store) {
             sendJson(res, 400, { error: err.message });
             return true;
           }
-          if (err.code === "BAD_DISPLAY_NAME") {
+          if (err.code === "BAD_DISPLAY_NAME" || err.code === "BAD_USERNAME") {
             sendJson(res, 400, { error: err.message });
+            return true;
+          }
+          if (err.code === "USERNAME_TAKEN" || err.code === "DISPLAY_NAME_TAKEN" || err.code === "EMAIL_TAKEN") {
+            sendJson(res, 409, { error: err.message });
             return true;
           }
           throw err;
@@ -356,8 +370,12 @@ function createAccountsHttp(store) {
         sendJson(res, 401, { error: err.message });
         return true;
       }
-      if (err.code === "USERNAME_TAKEN" || err.code === "EMAIL_TAKEN") {
+      if (err.code === "USERNAME_TAKEN" || err.code === "EMAIL_TAKEN" || err.code === "DISPLAY_NAME_TAKEN") {
         sendJson(res, 409, { error: err.message });
+        return true;
+      }
+      if (err.code === "BAD_USERNAME" || err.code === "BAD_DISPLAY_NAME" || err.code === "BAD_EMAIL") {
+        sendJson(res, 400, { error: err.message });
         return true;
       }
       if (err.code === "NOT_FOUND") {
