@@ -37,37 +37,8 @@
     // Intentionally silent — shuffle uses GlobbleSound.playShuffleRustle.
   }
 
-  function playDiceClatter(tileCount, options = {}) {
-    if (window.GlobbleSound?.playShuffleRustle) {
-      window.GlobbleSound.playShuffleRustle(options);
-      return;
-    }
-    // Fallback if ambient-sound.js is missing.
-    const context = getAudioContext();
-    if (!context) {
-      return;
-    }
-    const run = () => {
-      if (context.state !== "running") {
-        return;
-      }
-      const now = context.currentTime;
-      const osc = context.createOscillator();
-      const gain = context.createGain();
-      osc.type = "triangle";
-      osc.frequency.value = 180;
-      gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.exponentialRampToValueAtTime(0.08, now + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.2);
-      osc.connect(gain).connect(context.destination);
-      osc.start(now);
-      osc.stop(now + 0.22);
-    };
-    if (context.state === "suspended") {
-      void context.resume().then(run).catch(() => {});
-      return;
-    }
-    run();
+  function playDiceClatter() {
+    // Silent — no shuffle/recall clacks.
   }
 
   function primeAudioFromShuffleControl(event) {

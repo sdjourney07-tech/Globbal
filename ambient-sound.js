@@ -103,85 +103,27 @@
   }
 
   function playSailFlap() {
-    // Disabled — the random flap bursts read as annoying clacks in play.
+    // Disabled — random flap bursts read as annoying clacks.
   }
 
   function scheduleSailFlap() {
-    // No-op: keep API so stopAmbient still clears sailTimer safely.
+    // No-op.
   }
 
   function playFoghorn() {
-    if (!ambientBus || muted || !isBoardVisible() || context.state !== "running") {
-      return;
-    }
-    const now = context.currentTime;
-    const hornGain = context.createGain();
-    const lowpass = context.createBiquadFilter();
-    hornGain.gain.setValueAtTime(0.0001, now);
-    hornGain.gain.exponentialRampToValueAtTime(0.055, now + 0.65);
-    hornGain.gain.setValueAtTime(0.055, now + 2.1);
-    hornGain.gain.exponentialRampToValueAtTime(0.0001, now + 3.6);
-    lowpass.type = "lowpass";
-    lowpass.frequency.value = 360;
-    lowpass.Q.value = 0.7;
-    lowpass.connect(hornGain).connect(ambientBus);
-    [82, 123].forEach((frequency, index) => {
-      const oscillator = context.createOscillator();
-      oscillator.type = index ? "sine" : "triangle";
-      oscillator.frequency.value = frequency;
-      oscillator.detune.value = index ? -7 : 5;
-      oscillator.connect(lowpass);
-      oscillator.start(now);
-      oscillator.stop(now + 3.7);
-    });
+    // Disabled — keep ambience to continuous soft wind only.
   }
 
   function playSeabird() {
-    if (!ambientBus || muted || !isBoardVisible() || context.state !== "running") {
-      return;
-    }
-    const callCount = Math.random() < 0.36 ? 2 : 1;
-    for (let index = 0; index < callCount; index += 1) {
-      const start = context.currentTime + index * (0.32 + Math.random() * 0.2);
-      const duration = 0.42 + Math.random() * 0.18;
-      const source = context.createBufferSource();
-      const filter = context.createBiquadFilter();
-      const gain = context.createGain();
-      const baseFrequency = 1750 + Math.random() * 450;
-
-      // A broad, swept band of air sounds birdlike at a distance without the
-      // human whistle quality produced by a pitched oscillator.
-      source.buffer = makeWhiteNoiseBuffer(duration);
-      filter.type = "bandpass";
-      filter.Q.value = 2.1 + Math.random() * 0.8;
-      filter.frequency.setValueAtTime(baseFrequency, start);
-      filter.frequency.linearRampToValueAtTime(baseFrequency + 950, start + duration * 0.42);
-      filter.frequency.linearRampToValueAtTime(baseFrequency + 250, start + duration);
-      gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.exponentialRampToValueAtTime(0.022 + Math.random() * 0.01, start + 0.07);
-      gain.gain.exponentialRampToValueAtTime(0.006, start + duration * 0.43);
-      gain.gain.exponentialRampToValueAtTime(0.015, start + duration * 0.66);
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-      source.connect(filter).connect(gain).connect(ambientBus);
-      source.start(start);
-      source.stop(start + duration + 0.02);
-    }
+    // Disabled — swept noise bursts also read as random clacks.
   }
 
-  function scheduleFoghorn(first = false) {
-    clearTimeout(foghornTimer);
-    foghornTimer = window.setTimeout(() => {
-      playFoghorn();
-      scheduleFoghorn(false);
-    }, first ? 9000 + Math.random() * 7000 : 24000 + Math.random() * 22000);
+  function scheduleFoghorn() {
+    // No-op.
   }
 
-  function scheduleSeabird(first = false) {
-    clearTimeout(seabirdTimer);
-    seabirdTimer = window.setTimeout(() => {
-      playSeabird();
-      scheduleSeabird(false);
-    }, first ? 12000 + Math.random() * 10000 : 30000 + Math.random() * 35000);
+  function scheduleSeabird() {
+    // No-op.
   }
 
   function startAmbient() {
@@ -195,10 +137,8 @@
     ambientBus = audio.createGain();
     ambientBus.gain.value = 0.32;
     ambientBus.connect(audio.destination);
-    // Light wind only—the former low ocean-wave layer has been removed.
+    // Soft continuous wind only — no random one-shot SFX.
     addNoiseLayer({ cutoff: 1650, volume: 0.032, breezeRate: 0.047, breezeDepth: 0.012 });
-    scheduleFoghorn(true);
-    scheduleSeabird(true);
   }
 
   function stopAmbient() {
@@ -252,79 +192,7 @@
   }
 
   function playShuffleRustle(options = {}) {
-    if (muted) {
-      return;
-    }
-    const audio = ensureContext();
-    if (!audio) {
-      return;
-    }
-
-    const run = () => {
-      if (!audio || audio.state !== "running") {
-        return;
-      }
-      const durationMs = Number(options.durationMs);
-      const spanSec = Number.isFinite(durationMs)
-        ? Math.max(0.28, durationMs / 1000)
-        : 0.42;
-      const layers = 6;
-      const master = audio.createGain();
-      const tone = audio.createBiquadFilter();
-      tone.type = "lowpass";
-      tone.frequency.value = 3200;
-      tone.Q.value = 0.5;
-      // Soft but clearly audible through laptop/phone speakers.
-      master.gain.value = 0.55;
-      master.connect(tone).connect(audio.destination);
-
-      for (let index = 0; index < layers; index += 1) {
-        const progress = index / (layers - 1);
-        const start =
-          audio.currentTime + progress * spanSec * 0.7 + Math.random() * 0.03;
-        const duration = 0.14 + Math.random() * 0.1;
-        const frames = Math.max(1, Math.floor(audio.sampleRate * duration));
-        const buffer = audio.createBuffer(1, frames, audio.sampleRate);
-        const samples = buffer.getChannelData(0);
-        let brown = 0;
-        for (let i = 0; i < frames; i += 1) {
-          const white = Math.random() * 2 - 1;
-          brown = (brown + white * 0.04) * 0.975;
-          const t = i / Math.max(1, frames - 1);
-          const envelope = Math.sin(Math.PI * t) ** 1.6;
-          samples[i] = (brown * 4.5 + white * 0.22) * envelope;
-        }
-        const source = audio.createBufferSource();
-        const filter = audio.createBiquadFilter();
-        const gain = audio.createGain();
-        source.buffer = buffer;
-        filter.type = "bandpass";
-        filter.frequency.value = 900 + Math.random() * 1400;
-        filter.Q.value = 0.55;
-        const peak = 0.22 + Math.random() * 0.12;
-        gain.gain.setValueAtTime(0.0001, start);
-        gain.gain.exponentialRampToValueAtTime(peak, start + 0.025);
-        gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-        source.connect(filter).connect(gain).connect(master);
-        source.start(start);
-        source.stop(start + duration + 0.03);
-      }
-
-      window.setTimeout(() => {
-        try {
-          master.disconnect();
-          tone.disconnect();
-        } catch {
-          /* already gone */
-        }
-      }, Math.ceil(spanSec * 1000) + 400);
-    };
-
-    if (audio.state === "suspended") {
-      void audio.resume().then(run).catch(() => {});
-      return;
-    }
-    run();
+    // Soft shuffle SFX disabled for now — kept as a no-op API.
   }
 
   function primeFromGesture() {
