@@ -19,6 +19,7 @@
   const editDisplayName = document.getElementById("editDisplayName");
   const editEmail = document.getElementById("editEmail");
   const editUsername = document.getElementById("editUsername");
+  const editCurrentPassword = document.getElementById("editCurrentPassword");
   const editProfileCancelBtn = document.getElementById("editProfileCancelBtn");
   const editProfileSaveBtn = document.getElementById("editProfileSaveBtn");
   const editProfileError = document.getElementById("editProfileError");
@@ -96,7 +97,7 @@
     if (profileEmailHint) {
       profileEmailHint.textContent = email
         ? email
-        : "No email on file — add one below for password reset.";
+        : "Email required — open Edit profile to add one.";
     }
   }
 
@@ -108,6 +109,7 @@
     if (editUsername) editUsername.value = user.username || "";
     if (editDisplayName) editDisplayName.value = user.displayName || "";
     if (editEmail) editEmail.value = user.email || "";
+    if (editCurrentPassword) editCurrentPassword.value = "";
     if (typeof editProfileDialog.showModal === "function") {
       editProfileDialog.showModal();
     }
@@ -130,8 +132,13 @@
       const payload = {
         username: editUsername?.value ?? "",
         displayName: editDisplayName?.value ?? "",
-        email: editEmail?.value ?? ""
+        email: editEmail?.value ?? "",
+        currentPassword: editCurrentPassword?.value ?? ""
       };
+      if (!(payload.email || "").trim()) {
+        setEditProfileError("Email is required on your account.");
+        return;
+      }
       let data;
       try {
         data = await accounts.api("/api/me/profile/update", {
@@ -151,6 +158,7 @@
       const user = data.user;
       accounts.setSession(accounts.getToken(), user);
       renderProfileIdentity(user);
+      if (editCurrentPassword) editCurrentPassword.value = "";
       if (typeof editProfileDialog?.close === "function") {
         editProfileDialog.close();
       }

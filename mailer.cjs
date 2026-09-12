@@ -5,6 +5,36 @@
  * Uses Resend when RESEND_API_KEY is set; otherwise logs the link (local/dev).
  */
 
+function isPasswordResetEmailConfigured() {
+  return Boolean(String(process.env.RESEND_API_KEY || "").trim());
+}
+
+/**
+ * Whether the API may return a raw reset URL in the JSON body (local/dev only).
+ * Never trusts X-Forwarded-* / Host spoofing for this decision.
+ */
+function allowDevResetLinkInResponse(req) {
+  if (String(process.env.ALLOW_DEV_RESET_LINKS || "").trim() === "1") {
+    return true;
+  }
+  if (isPasswordResetEmailConfigured()) {
+    return false;
+  }
+  const addr = String(req?.socket?.remoteAddress || "");
+  const loopback =
+    addr === "127.0.0.1" ||
+    addr === "::1" ||
+    addr === "::ffff:127.0.0.1";
+  if (!loopback) {
+    return false;
+  }
+  // If a proxy forwarded this request, do not treat it as a safe local console session.
+  if (req?.headers?.["x-forwarded-for"] || req?.headers?.["x-forwarded-host"]) {
+    return false;
+  }
+  return true;
+}
+
 async function sendPasswordResetEmail({ to, resetUrl, username }) {
   const apiKey = String(process.env.RESEND_API_KEY || "").trim();
   const from =
@@ -75,5 +105,7 @@ function appPublicBaseUrl(req) {
 
 module.exports = {
   sendPasswordResetEmail,
-  appPublicBaseUrl
+  appPublicBaseUrl,
+  isPasswordResetEmailConfigured,
+  allowDevResetLinkInResponse
 };

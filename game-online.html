@@ -9,11 +9,11 @@
     <link rel="icon" href="./assets/logo-mark.svg" type="image/svg+xml" />
     <link rel="preload" href="./assets/ancient-compass-map-original.png" as="image" />
     <link rel="preload" href="./assets/parch2copy.png" as="image" />
-    <link rel="stylesheet" href="./styles.css?v=zoom-depth1" />
+    <link rel="stylesheet" href="./styles.css?v=chat-keyboard1" />
     <link rel="stylesheet" href="./styles-splash.css" />
     <link
       rel="stylesheet"
-      href="./styles-mobile.css?v=zoom-depth1"
+      href="./styles-mobile.css?v=chat-keyboard1"
       media="screen and (max-width: 640px), screen and (max-height: 640px) and (orientation: landscape)"
     />
     <style>
@@ -154,8 +154,13 @@
                   <input
                     id="gameChatInput"
                     type="text"
+                    inputmode="text"
+                    enterkeyhint="send"
                     maxlength="200"
                     autocomplete="off"
+                    autocorrect="on"
+                    autocapitalize="sentences"
+                    spellcheck="true"
                     placeholder="Say something…"
                     aria-label="Chat message"
                   />
@@ -284,6 +289,6 @@
     <script src="./playable-words.js?v=stats1"></script>
     <script src="./invalid-word-toast.js"></script>
     <script src="./game-load-reveal.js"></script>
-    <script src="./app-online.js?v=chat-toggle1"></script>
+    <script src="./app-online.js?v=score-face1"></script>
   </body>
 </html>

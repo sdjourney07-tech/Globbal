@@ -1,6 +1,11 @@
 "use strict";
 
-const { sendPasswordResetEmail, appPublicBaseUrl } = require("./mailer.cjs");
+const {
+  sendPasswordResetEmail,
+  appPublicBaseUrl,
+  isPasswordResetEmailConfigured,
+  allowDevResetLinkInResponse
+} = require("./mailer.cjs");
 
 function readJsonBody(req, limit = 1e6) {
   return new Promise((resolve, reject) => {
@@ -76,7 +81,11 @@ function createAccountsHttp(store) {
           sendJson(res, 400, { error: "Password must be at least 6 characters." });
           return true;
         }
-        if (email && !store.isValidEmail(email)) {
+        if (!email) {
+          sendJson(res, 400, { error: "Email is required to create an account." });
+          return true;
+        }
+        if (!store.isValidEmail(email)) {
           sendJson(res, 400, { error: "Enter a valid email address." });
           return true;
         }
@@ -85,7 +94,7 @@ function createAccountsHttp(store) {
           const token = await store.createSession(user._id);
           sendJson(res, 201, { user, token });
         } catch (err) {
-          if (err.code === "BAD_EMAIL") {
+          if (err.code === "BAD_EMAIL" || err.code === "EMAIL_REQUIRED") {
             sendJson(res, 400, { error: err.message });
             return true;
           }
@@ -135,20 +144,42 @@ function createAccountsHttp(store) {
         }
         const row = await store.findUserByLogin(identifier);
         if (row && (row.emailKey || row.email)) {
+          const emailConfigured = isPasswordResetEmailConfigured();
+          const allowDevLink = allowDevResetLinkInResponse(req);
+          if (!emailConfigured && !allowDevLink) {
+            sendJson(res, 503, {
+              error:
+                "Password reset email is not configured on this server. Ask the host to set RESEND_API_KEY (and EMAIL_FROM)."
+            });
+            return true;
+          }
           const reset = await store.createPasswordReset(String(row._id));
           if (reset) {
             const resetUrl = `${appPublicBaseUrl(req)}/reset-password.html?token=${encodeURIComponent(reset.token)}`;
             try {
-              await sendPasswordResetEmail({
+              const sent = await sendPasswordResetEmail({
                 to: reset.email,
                 resetUrl,
                 username: reset.username
               });
+              if (sent.mode === "log" && allowDevLink) {
+                sendJson(res, 200, {
+                  ok: true,
+                  message:
+                    "Email sending is not configured (no RESEND_API_KEY). Use this local reset link — it expires in 1 hour.",
+                  devResetUrl: resetUrl,
+                  emailed: false
+                });
+                return true;
+              }
+              sendJson(res, 200, { ...generic, emailed: sent.mode === "resend" });
+              return true;
             } catch (err) {
               if (err.code === "EMAIL_SEND_FAILED") {
                 process.stderr.write(`[accounts-api] ${err.message}\n`);
                 sendJson(res, 502, {
-                  error: "Could not send reset email. Try again later."
+                  error:
+                    "Could not send reset email. Check RESEND_API_KEY / EMAIL_FROM (Resend needs a verified from-address to mail other people)."
                 });
                 return true;
               }
@@ -174,6 +205,9 @@ function createAccountsHttp(store) {
         }
         try {
           const user = await store.resetPasswordWithToken(token, password);
+          if (typeof store.deleteSessionsForUser === "function") {
+            await store.deleteSessionsForUser(user._id);
+          }
           const sessionToken = await store.createSession(user._id);
           sendJson(res, 200, { user, token: sessionToken });
         } catch (err) {
@@ -222,7 +256,10 @@ function createAccountsHttp(store) {
         if (Object.prototype.hasOwnProperty.call(body, "email")) {
           patch.email = String(body.email ?? "").trim();
         }
-        if (!Object.keys(patch).length) {
+        if (Object.prototype.hasOwnProperty.call(body, "currentPassword")) {
+          patch.currentPassword = String(body.currentPassword ?? "");
+        }
+        if (!Object.keys(patch).filter((k) => k !== "currentPassword").length) {
           sendJson(res, 400, { error: "Nothing to update." });
           return true;
         }
@@ -230,11 +267,13 @@ function createAccountsHttp(store) {
           const updated = await store.updateUserProfile(user._id, patch);
           sendJson(res, 200, { user: updated });
         } catch (err) {
-          if (err.code === "BAD_EMAIL") {
-            sendJson(res, 400, { error: err.message });
-            return true;
-          }
-          if (err.code === "BAD_DISPLAY_NAME" || err.code === "BAD_USERNAME") {
+          if (
+            err.code === "BAD_EMAIL" ||
+            err.code === "EMAIL_REQUIRED" ||
+            err.code === "BAD_PASSWORD" ||
+            err.code === "BAD_DISPLAY_NAME" ||
+            err.code === "BAD_USERNAME"
+          ) {
             sendJson(res, 400, { error: err.message });
             return true;
           }
@@ -260,7 +299,10 @@ function createAccountsHttp(store) {
         if (Object.prototype.hasOwnProperty.call(body, "email")) {
           patch.email = String(body.email ?? "").trim();
         }
-        if (!Object.keys(patch).length) {
+        if (Object.prototype.hasOwnProperty.call(body, "currentPassword")) {
+          patch.currentPassword = String(body.currentPassword ?? "");
+        }
+        if (!Object.keys(patch).filter((k) => k !== "currentPassword").length) {
           sendJson(res, 400, { error: "Nothing to update." });
           return true;
         }
@@ -268,11 +310,13 @@ function createAccountsHttp(store) {
           const updated = await store.updateUserProfile(user._id, patch);
           sendJson(res, 200, { user: updated });
         } catch (err) {
-          if (err.code === "BAD_EMAIL") {
-            sendJson(res, 400, { error: err.message });
-            return true;
-          }
-          if (err.code === "BAD_DISPLAY_NAME" || err.code === "BAD_USERNAME") {
+          if (
+            err.code === "BAD_EMAIL" ||
+            err.code === "EMAIL_REQUIRED" ||
+            err.code === "BAD_PASSWORD" ||
+            err.code === "BAD_DISPLAY_NAME" ||
+            err.code === "BAD_USERNAME"
+          ) {
             sendJson(res, 400, { error: err.message });
             return true;
           }
@@ -374,7 +418,13 @@ function createAccountsHttp(store) {
         sendJson(res, 409, { error: err.message });
         return true;
       }
-      if (err.code === "BAD_USERNAME" || err.code === "BAD_DISPLAY_NAME" || err.code === "BAD_EMAIL") {
+      if (
+        err.code === "BAD_USERNAME" ||
+        err.code === "BAD_DISPLAY_NAME" ||
+        err.code === "BAD_EMAIL" ||
+        err.code === "EMAIL_REQUIRED" ||
+        err.code === "BAD_PASSWORD"
+      ) {
         sendJson(res, 400, { error: err.message });
         return true;
       }

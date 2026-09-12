@@ -68,6 +68,28 @@ function normalizeOptionalEmail(email) {
   return value;
 }
 
+function normalizeRequiredEmail(email) {
+  const value = normalizeOptionalEmail(email);
+  if (!value) {
+    const err = new Error("Email is required.");
+    err.code = "EMAIL_REQUIRED";
+    throw err;
+  }
+  return value;
+}
+
+function emailRequiredError(message) {
+  const err = new Error(message || "Email is required on your account.");
+  err.code = "EMAIL_REQUIRED";
+  return err;
+}
+
+function badPasswordError(message) {
+  const err = new Error(message || "Incorrect password.");
+  err.code = "BAD_PASSWORD";
+  return err;
+}
+
 function normalizeDisplayName(name) {
   return String(name || "")
     .trim()
@@ -259,14 +281,14 @@ function createFileBackend() {
     async createUser({ username, password, email }) {
       const data = readFileData();
       const key = normalizeUsername(username);
-      const emailKey = normalizeOptionalEmail(email);
+      const emailKey = normalizeRequiredEmail(email);
       if (!isValidUsername(key)) {
         throw badUsernameError();
       }
       if (fileUsernameEverUsed(data, key) || data.users.some((u) => u.usernameKey === key)) {
         throw usernameTakenError();
       }
-      if (emailKey && data.users.some((u) => u.emailKey === emailKey)) {
+      if (data.users.some((u) => u.emailKey === emailKey)) {
         const err = new Error("That email is already linked to an account.");
         err.code = "EMAIL_TAKEN";
         throw err;
@@ -275,8 +297,8 @@ function createFileBackend() {
         _id: newId("usr"),
         username: key,
         usernameKey: key,
-        email: emailKey || null,
-        emailKey: emailKey || null,
+        email: emailKey,
+        emailKey,
         passwordHash: await hashPassword(password),
         createdAt: nowIso()
       };
@@ -384,6 +406,12 @@ function createFileBackend() {
       const data = readFileData();
       const tokenHash = hashToken(token);
       data.sessions = data.sessions.filter((s) => s.tokenHash !== tokenHash);
+      writeFileData(data);
+    },
+    async deleteSessionsForUser(userId) {
+      const data = readFileData();
+      const uid = String(userId);
+      data.sessions = data.sessions.filter((s) => String(s.userId) !== uid);
       writeFileData(data);
     },
     async createChallenge({ challenger, opponent }) {
@@ -530,7 +558,7 @@ function createFileBackend() {
         ...buildUserProfile(userId, data.games)
       };
     },
-    async updateUserProfile(userId, { displayName, email, username }) {
+    async updateUserProfile(userId, { displayName, email, username, currentPassword }) {
       const data = readFileData();
       const user = data.users.find((u) => u._id === userId);
       if (!user) {
@@ -565,15 +593,22 @@ function createFileBackend() {
         user.displayName = next || null;
       }
       if (email !== undefined) {
-        const raw = String(email || "").trim();
-        const emailKey = raw ? normalizeOptionalEmail(raw) : "";
-        if (emailKey && data.users.some((u) => u._id !== userId && u.emailKey === emailKey)) {
-          const err = new Error("That email is already linked to an account.");
-          err.code = "EMAIL_TAKEN";
-          throw err;
+        const emailKey = normalizeRequiredEmail(email);
+        const current = normalizeEmail(user.emailKey || user.email || "");
+        if (emailKey !== current) {
+          if (!(await verifyPassword(String(currentPassword || ""), user.passwordHash))) {
+            throw badPasswordError("Enter your current password to change email.");
+          }
+          if (data.users.some((u) => u._id !== userId && u.emailKey === emailKey)) {
+            const err = new Error("That email is already linked to an account.");
+            err.code = "EMAIL_TAKEN";
+            throw err;
+          }
+          user.email = emailKey;
+          user.emailKey = emailKey;
         }
-        user.email = emailKey || null;
-        user.emailKey = emailKey || null;
+      } else if (!normalizeEmail(user.emailKey || user.email || "")) {
+        throw emailRequiredError("Add an email to your account.");
       }
       writeFileData(data);
       return profileUser(user);
@@ -747,7 +782,7 @@ async function createMongoBackend(uri) {
     client,
     async createUser({ username, password, email }) {
       const key = normalizeUsername(username);
-      const emailKey = normalizeOptionalEmail(email);
+      const emailKey = normalizeRequiredEmail(email);
       if (!isValidUsername(key)) {
         throw badUsernameError();
       }
@@ -756,8 +791,8 @@ async function createMongoBackend(uri) {
         const doc = {
           username: key,
           usernameKey: key,
-          email: emailKey || null,
-          emailKey: emailKey || null,
+          email: emailKey,
+          emailKey,
           passwordHash: await hashPassword(password),
           createdAt: nowIso()
         };
@@ -888,6 +923,11 @@ async function createMongoBackend(uri) {
     async deleteSession(token) {
       if (!token) return;
       await sessions.deleteOne({ tokenHash: hashToken(token) });
+    },
+    async deleteSessionsForUser(userId) {
+      const id = oid(userId);
+      if (!id) return;
+      await sessions.deleteMany({ userId: id });
     },
     async createChallenge({ challenger, opponent }) {
       const a = oid(challenger._id);
@@ -1053,7 +1093,7 @@ async function createMongoBackend(uri) {
         ...buildUserProfile(userId, normalizedGames)
       };
     },
-    async updateUserProfile(userId, { displayName, email, username }) {
+    async updateUserProfile(userId, { displayName, email, username, currentPassword }) {
       const id = oid(userId);
       if (!id) {
         const err = new Error("Account not found.");
@@ -1094,9 +1134,17 @@ async function createMongoBackend(uri) {
         updates.displayName = next || null;
       }
       if (email !== undefined) {
-        const raw = String(email || "").trim();
-        updates.emailKey = raw ? normalizeOptionalEmail(raw) : null;
-        updates.email = updates.emailKey;
+        const emailKey = normalizeRequiredEmail(email);
+        const current = normalizeEmail(userDoc.emailKey || userDoc.email || "");
+        if (emailKey !== current) {
+          if (!(await verifyPassword(String(currentPassword || ""), userDoc.passwordHash))) {
+            throw badPasswordError("Enter your current password to change email.");
+          }
+          updates.emailKey = emailKey;
+          updates.email = emailKey;
+        }
+      } else if (!normalizeEmail(userDoc.emailKey || userDoc.email || "")) {
+        throw emailRequiredError("Add an email to your account.");
       }
       if (!Object.keys(updates).length) {
         return profileUser({ ...userDoc, _id: String(userDoc._id) });

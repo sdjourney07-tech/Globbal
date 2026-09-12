@@ -20,6 +20,7 @@ const gameChatHintEl = document.getElementById("gameChatHint");
 const gameChatLogEl = document.getElementById("gameChatLog");
 const gameChatFormEl = document.getElementById("gameChatForm");
 const gameChatInputEl = document.getElementById("gameChatInput");
+const gameChatSendBtn = document.getElementById("gameChatSendBtn");
 const gameChatUnreadEl = document.getElementById("gameChatUnread");
 
 const submitTurnBtn = document.getElementById("submitTurnBtn");
@@ -139,6 +140,39 @@ function setGameChatVisible(visible) {
   }
 }
 
+function focusChatComposer() {
+  if (!gameChatInputEl || !chatPanelOpen) {
+    return;
+  }
+  // Keep the field focusable so mobile browsers can raise the software keyboard.
+  if (gameChatFormEl) {
+    gameChatFormEl.hidden = false;
+  }
+  gameChatInputEl.disabled = false;
+  gameChatInputEl.readOnly = false;
+  const activate = () => {
+    if (!chatPanelOpen || !gameChatInputEl) {
+      return;
+    }
+    try {
+      gameChatInputEl.focus({ preventScroll: false });
+    } catch {
+      gameChatInputEl.focus();
+    }
+    try {
+      gameChatInputEl.scrollIntoView({ block: "nearest", inline: "nearest" });
+    } catch {
+      /* ignore */
+    }
+  };
+  activate();
+  // iOS/Android often need a follow-up focus after the panel finishes showing.
+  requestAnimationFrame(() => {
+    activate();
+    setTimeout(activate, 50);
+  });
+}
+
 function setChatPanelOpen(open) {
   chatPanelOpen = Boolean(open);
   if (gameChatPanelEl) {
@@ -157,9 +191,13 @@ function setChatPanelOpen(open) {
   if (chatPanelOpen) {
     chatUnreadCount = 0;
     updateChatUnreadBadge();
-    if (chatYouEnabled && chatBothEnabled && gameChatInputEl) {
-      gameChatInputEl.focus();
+    // Show composer while the panel is open so opening chat can summon the keyboard.
+    if (gameChatFormEl) {
+      gameChatFormEl.hidden = false;
     }
+    focusChatComposer();
+  } else if (gameChatInputEl && document.activeElement === gameChatInputEl) {
+    gameChatInputEl.blur();
   }
 }
 
@@ -212,7 +250,23 @@ function updateChatUi() {
     gameChatOptInEl.checked = chatYouEnabled;
   }
   if (gameChatFormEl) {
-    gameChatFormEl.hidden = !(chatYouEnabled && chatBothEnabled);
+    // Keep the composer available whenever the panel is open so mobile keyboards can attach.
+    // Sending is still gated below until both players join.
+    gameChatFormEl.hidden = !chatPanelOpen;
+  }
+  if (gameChatInputEl) {
+    gameChatInputEl.disabled = false;
+    gameChatInputEl.readOnly = false;
+    if (!chatYouEnabled) {
+      gameChatInputEl.placeholder = "Join chat above, then type…";
+    } else if (!chatBothEnabled) {
+      gameChatInputEl.placeholder = "Waiting for opponent to join…";
+    } else {
+      gameChatInputEl.placeholder = "Say something…";
+    }
+  }
+  if (gameChatSendBtn) {
+    gameChatSendBtn.disabled = !(chatYouEnabled && chatBothEnabled);
   }
   if (gameChatLogEl) {
     gameChatLogEl.hidden = !chatYouEnabled;
@@ -280,7 +334,11 @@ function bindGameChatUi() {
   gameChatBubbleBtn.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    setChatPanelOpen(!chatPanelOpen);
+    const willOpen = !chatPanelOpen;
+    setChatPanelOpen(willOpen);
+    if (willOpen) {
+      focusChatComposer();
+    }
   });
   gameChatCloseBtn?.addEventListener("click", (event) => {
     event.preventDefault();
@@ -290,6 +348,9 @@ function bindGameChatUi() {
   gameChatOptInEl?.addEventListener("change", () => {
     const enabled = Boolean(gameChatOptInEl.checked);
     sendAction({ type: "chatOptIn", enabled });
+    if (enabled && chatPanelOpen) {
+      focusChatComposer();
+    }
   });
   gameChatFormEl?.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -298,12 +359,38 @@ function bindGameChatUi() {
     }
     const text = gameChatInputEl.value.trim();
     if (!text) {
+      focusChatComposer();
+      return;
+    }
+    if (!chatYouEnabled) {
+      if (gameChatHintEl) {
+        gameChatHintEl.textContent = "Check “Join chat with opponent” first, then send.";
+      }
+      focusChatComposer();
+      return;
+    }
+    if (!chatBothEnabled) {
+      if (gameChatHintEl) {
+        gameChatHintEl.textContent = "Waiting for your opponent to join chat…";
+      }
+      focusChatComposer();
       return;
     }
     sendAction({ type: "chatSend", text });
     gameChatInputEl.value = "";
-    gameChatInputEl.focus();
+    focusChatComposer();
   });
+  // Tapping the input itself should reliably raise the keyboard on mobile.
+  gameChatInputEl?.addEventListener(
+    "pointerdown",
+    () => {
+      if (!chatPanelOpen) {
+        return;
+      }
+      focusChatComposer();
+    },
+    { passive: true }
+  );
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && chatPanelOpen) {
       setChatPanelOpen(false);
@@ -917,7 +1004,8 @@ function computeTurnScore(words, turnPlacements) {
         return;
       }
       let letterValue = tile.value;
-      if (!tile.locked) {
+      // Already-played tiles count at face value only — no reused premiums.
+      if (newKeys.has(`${row},${col}`)) {
         const premium = board[row][col].premium;
         if (premium === "dl") {
           letterValue *= 2;

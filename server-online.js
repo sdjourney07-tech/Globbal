@@ -706,7 +706,12 @@ async function start() {
             ? " (set MONGODB_URI in .env for MongoDB)"
             : ` (database: ${process.env.MONGODB_DB || "globble"})`
         }\n` +
-        `Live game idle cleanup: ${idleLabel}\n`
+        `Live game idle cleanup: ${idleLabel}\n` +
+        `Password reset email: ${
+          String(process.env.RESEND_API_KEY || "").trim()
+            ? "Resend enabled"
+            : "disabled (set RESEND_API_KEY to email links; locally links appear in the UI / server log)"
+        }\n`
     );
   });
 

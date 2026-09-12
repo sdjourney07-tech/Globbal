@@ -22,6 +22,8 @@
   const forgotSubmitBtn = document.getElementById("forgotSubmitBtn");
   const forgotBackBtn = document.getElementById("forgotBackBtn");
   const forgotError = document.getElementById("forgotError");
+  const forgotDevLinkWrap = document.getElementById("forgotDevLinkWrap");
+  const forgotDevLink = document.getElementById("forgotDevLink");
 
   function setAuthError(message) {
     if (authError) authError.textContent = message || "";
@@ -29,6 +31,19 @@
 
   function setForgotError(message) {
     if (forgotError) forgotError.textContent = message || "";
+  }
+
+  function setForgotDevLink(url) {
+    if (!forgotDevLinkWrap || !forgotDevLink) {
+      return;
+    }
+    if (url) {
+      forgotDevLink.href = url;
+      forgotDevLinkWrap.hidden = false;
+    } else {
+      forgotDevLink.removeAttribute("href");
+      forgotDevLinkWrap.hidden = true;
+    }
   }
 
   function setAuthPasswordVisible(visible) {
@@ -45,6 +60,7 @@
     if (authForm) authForm.hidden = !!show;
     if (forgotForm) forgotForm.hidden = !show;
     setForgotError("");
+    setForgotDevLink("");
     setAuthError("");
     if (show && forgotLogin && authUsername?.value) {
       forgotLogin.value = authUsername.value.trim();
@@ -63,7 +79,7 @@
     if (!login || !password) {
       setAuthError(
         mode === "register"
-          ? "Enter a username and password."
+          ? "Enter a username, email, and password."
           : "Enter username or email, and password."
       );
       return;
@@ -72,12 +88,16 @@
       setAuthError("Choose a username for your account (email goes in the email field).");
       return;
     }
+    if (mode === "register" && !email) {
+      setAuthError("Email is required to create an account.");
+      return;
+    }
     if (loginBtn) loginBtn.disabled = true;
     if (registerBtn) registerBtn.disabled = true;
     try {
       const body =
         mode === "register"
-          ? { username: login, password, email: email || undefined }
+          ? { username: login, password, email }
           : { login, password };
       const data = await accounts.api(
         mode === "register" ? "/api/auth/register" : "/api/auth/login",
@@ -110,6 +130,7 @@
 
   async function doForgot() {
     setForgotError("");
+    setForgotDevLink("");
     const login = (forgotLogin?.value || "").trim();
     if (!login) {
       setForgotError("Enter your username or email.");
@@ -122,6 +143,9 @@
         body: JSON.stringify({ login })
       });
       setForgotError(data.message || "If that account has an email, we sent a reset link.");
+      if (data.devResetUrl) {
+        setForgotDevLink(data.devResetUrl);
+      }
     } catch (err) {
       setForgotError(err.message || "Could not send reset email.");
     } finally {

@@ -800,7 +800,8 @@ class OnlineGame {
           return;
         }
         let letterValue = tile.value;
-        if (!tile.locked) {
+        // Already-played tiles count at face value only — no reused premiums.
+        if (newKeys.has(`${row},${col}`)) {
           const premium = this.board[row][col].premium;
           if (premium === "dl") {
             letterValue *= 2;

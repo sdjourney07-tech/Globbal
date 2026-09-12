@@ -116,12 +116,6 @@
             <p>Two-player rules on one device — play on your own anytime.</p>
             <span class="landing-cta">Play local →</span>
           </a>
-
-          <a class="landing-card" href="./rules.html">
-            <h2>Rules</h2>
-            <p>Scoring, turns, and how legal words work.</p>
-            <span class="landing-cta">Read the rules →</span>
-          </a>
         </div>
 
         <div class="landing-actions">
@@ -218,9 +212,18 @@
           name="email"
           type="email"
           autocomplete="email"
-          placeholder="Optional — for password reset"
+          required
+          placeholder="Required for password reset"
         />
-        <p class="hint">Leave email blank to remove it from your account.</p>
+        <p class="hint">Email is required and can’t be removed. Changing it needs your current password.</p>
+        <label class="profile-edit-label" for="editCurrentPassword">Current password</label>
+        <input
+          id="editCurrentPassword"
+          name="currentPassword"
+          type="password"
+          autocomplete="current-password"
+          placeholder="Required to add or change email"
+        />
         <div class="landing-auth-actions profile-edit-actions">
           <button type="submit" id="editProfileSaveBtn">Save changes</button>
           <button type="button" id="editProfileCancelBtn">Cancel</button>
@@ -229,7 +232,7 @@
     </dialog>
 
     <script src="./accounts-client.js"></script>
-    <script src="./accounts-profile.js?v=history-btn1"></script>
+    <script src="./accounts-profile.js?v=email-required1"></script>
     <script src="./dictionary-keys.js"></script>
     <script src="./dictionary-alias-sources.js"></script>
     <script>

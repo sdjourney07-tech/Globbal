@@ -8,7 +8,7 @@
     <link rel="icon" href="./assets/favicon.ico" sizes="any" />
     <link rel="icon" href="./assets/logo-mark.svg" type="image/svg+xml" />
     <link rel="preload" href="./assets/parch2copy.png" as="image" />
-    <link rel="stylesheet" href="./styles.css?v=rules-btn1" />
+    <link rel="stylesheet" href="./styles.css?v=reset-mail1" />
     <link rel="stylesheet" href="./styles-splash.css?v=parch4" />
     <link rel="stylesheet" href="./assets/fonts/globble-logo.css" />
     <link
@@ -131,7 +131,7 @@
       <div id="authPanel" class="landing-grid">
         <section class="landing-card landing-account-card">
           <h2>Account</h2>
-          <p>Sign in with username or email. Create an account with a username (email optional — needed for password reset).</p>
+          <p>Sign in with username or email. New accounts need a username, email, and password (email is used for password reset).</p>
           <form id="authForm" class="landing-auth-form" action="#" method="post">
             <label>
               Username or email
@@ -144,7 +144,7 @@
               />
             </label>
             <label id="authEmailLabel">
-              Email <span class="landing-field-optional">(optional for new accounts)</span>
+              Email <span class="landing-field-optional">(required for new accounts)</span>
               <input
                 id="authEmail"
                 name="email"
@@ -185,7 +185,7 @@
           </form>
           <form id="forgotForm" class="landing-auth-form" action="#" method="post" hidden>
             <p class="landing-forgot-hint">
-              Enter the username or email on your account. We’ll email a reset link if an email is saved.
+              Enter the username or email on your account. We’ll email a reset link to the address linked to that account.
             </p>
             <label>
               Username or email
@@ -196,6 +196,9 @@
               <button type="button" id="forgotBackBtn">Back to sign in</button>
             </div>
             <p id="forgotError" class="landing-error" aria-live="polite"></p>
+            <p id="forgotDevLinkWrap" class="landing-forgot-dev-link" hidden>
+              <a id="forgotDevLink" href="#">Open password reset link</a>
+            </p>
           </form>
         </section>
 
@@ -261,7 +264,7 @@
     </div>
 
     <script src="./accounts-client.js"></script>
-    <script src="./accounts-auth.js"></script>
+    <script src="./accounts-auth.js?v=email-required1"></script>
     <script src="./dictionary-keys.js"></script>
     <script src="./dictionary-alias-sources.js"></script>
     <script>

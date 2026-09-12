@@ -21,16 +21,17 @@ The app is one Node process: **HTTP static files**, **REST account APIs**, and *
 | `MONGODB_DB`    | `globble`    | Database name (e.g. `ClusterGlobble`). |
 | `ALLOW_FILE_ACCOUNTS` | _(unset)_ | Set to `1` only for local dev without MongoDB. |
 | `ROOM_IDLE_MS`  | `3600000` | After **both** WebSockets disconnect, drop the in-memory match after this many ms. `0` / `never` = keep until process restart. |
-| `RESEND_API_KEY` | _(unset)_ | Resend API key for password-reset emails. Without it, reset links are printed to the server log (fine for local/dev). |
-| `EMAIL_FROM`    | `Globbal <onboarding@resend.dev>` | From address for reset emails (must be allowed by Resend). |
+| `RESEND_API_KEY` | _(unset)_ | Resend API key for password-reset emails. Without it, **local** requests get a clickable reset link in the UI; production returns an error until this is set. |
+| `EMAIL_FROM`    | `Globbal <onboarding@resend.dev>` | From address for reset emails. Resend’s onboarding address can only mail your own Resend account email until you verify a domain. |
 | `APP_PUBLIC_URL` | _(auto from request)_ | Public site origin used in reset links (e.g. `https://your-app.up.railway.app`). Set this in production. |
 
 ## Accounts & password reset
 
 - **Username** is always required (shown in-game). Sign in with **username or email**.
-- **Email** is optional on create, but required to use **Forgot password**.
-- Forgot password emails a time-limited link (`/reset-password.html?token=…`, 1 hour).
-- Production: set `RESEND_API_KEY`, `EMAIL_FROM`, and `APP_PUBLIC_URL`.
+- **Email** is required when creating an account (used for password reset). It cannot be removed later.
+- Changing email requires the account’s **current password**.
+- Forgot password emails a time-limited link (`/reset-password.html?token=…`, 1 hour) when `RESEND_API_KEY` is set.
+- Production: set `RESEND_API_KEY`, a verified `EMAIL_FROM`, and `APP_PUBLIC_URL`.
 
 ## Multiplayer flow
 

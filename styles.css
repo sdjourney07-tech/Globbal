@@ -664,7 +664,11 @@ html:has(.gameplay-body) {
   background: #fffaf2;
   color: #2a1a0f;
   padding: 8px 10px;
-  font-size: 0.88rem;
+  /* 16px avoids iOS focus-zoom and helps the software keyboard attach reliably */
+  font-size: 16px;
+  line-height: 1.25;
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .game-chat-form button {
@@ -4586,6 +4590,18 @@ a.landing-card:hover {
   font-size: 0.85rem;
   color: rgba(236, 224, 204, 0.88);
   line-height: 1.35;
+}
+
+.landing-forgot-dev-link {
+  margin: 0.35rem 0 0;
+  font-size: 0.9rem;
+}
+
+.landing-forgot-dev-link a {
+  color: #f3d7a8;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
 }
 
 .player-search-row {
