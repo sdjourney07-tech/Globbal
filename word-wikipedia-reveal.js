@@ -241,6 +241,16 @@
       pushQuery(meta.country || label);
       pushQuery(label);
       pushQuery(rawWord);
+    } else if (meta.kind === "abbreviation" && meta.abbreviationFor) {
+      pushQuery(label);
+      pushQuery(meta.abbreviationFor);
+      if (meta.stateCode === "GA") {
+        pushQuery("Georgia (U.S. state)");
+      }
+      if (meta.stateCode === "WA") {
+        pushQuery("Washington (state)");
+      }
+      pushQuery(rawWord);
     } else {
       pushQuery(label);
       if (meta.country && meta.country !== label) {
@@ -393,12 +403,67 @@
     document.body.classList.toggle("wiki-reveal-open", locked);
   }
 
-  function hide() {
+  function prefersReducedMotion() {
+    return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true;
+  }
+
+  function waitForFrame() {
+    return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+  }
+
+  function waitMs(ms) {
+    return new Promise((resolve) => window.setTimeout(resolve, ms));
+  }
+
+  function waitForTransition(el, fallbackMs) {
+    return new Promise((resolve) => {
+      if (!el || prefersReducedMotion()) {
+        resolve();
+        return;
+      }
+      let done = false;
+      const finish = () => {
+        if (done) {
+          return;
+        }
+        done = true;
+        el.removeEventListener("transitionend", onEnd);
+        resolve();
+      };
+      const onEnd = (event) => {
+        if (event.target === el) {
+          finish();
+        }
+      };
+      el.addEventListener("transitionend", onEnd);
+      window.setTimeout(finish, fallbackMs);
+    });
+  }
+
+  async function openOverlay(el) {
+    el.hidden = false;
+    el.classList.remove("is-open", "is-closing");
+    setBodyLocked(true);
+    await waitForFrame();
+    await waitForFrame();
+    el.classList.add("is-open");
+    await waitForTransition(el, 360);
+  }
+
+  async function hide() {
     if (!overlayEl) {
       return;
     }
-    overlayEl.remove();
-    overlayEl = null;
+    const el = overlayEl;
+    el.classList.add("is-closing");
+    el.classList.remove("is-open");
+    await waitForTransition(el, 320);
+    if (overlayEl === el) {
+      el.remove();
+      overlayEl = null;
+    } else {
+      el.remove();
+    }
     setBodyLocked(false);
   }
 
@@ -426,6 +491,16 @@
     });
   }
 
+  function markPanelEnter(panelEl) {
+    if (!panelEl || prefersReducedMotion()) {
+      return;
+    }
+    panelEl.classList.remove("wiki-reveal-panel-enter");
+    // Force restart so loading → content always fades in.
+    void panelEl.offsetWidth;
+    panelEl.classList.add("wiki-reveal-panel-enter");
+  }
+
   function renderArticle(el, article, label) {
     const loadingEl = el.querySelector(".wiki-reveal-loading");
     const contentEl = el.querySelector(".wiki-reveal-content");
@@ -446,6 +521,8 @@
     thumbEl.removeAttribute("src");
     openEl.hidden = true;
     openEl.removeAttribute("href");
+    contentEl.classList.remove("wiki-reveal-panel-enter");
+    fallbackEl.classList.remove("wiki-reveal-panel-enter");
 
     if (!article) {
       fallbackEl.hidden = false;
@@ -453,6 +530,7 @@
       message.className = "wiki-reveal-fallback-text";
       message.textContent = `No geographic Wikipedia article was found for ${label}.`;
       fallbackEl.appendChild(message);
+      markPanelEnter(fallbackEl);
       return;
     }
 
@@ -480,6 +558,7 @@
       message.className = "wiki-reveal-fallback-text";
       message.textContent = `Wikipedia has an article for ${article.title || label}, but no preview text was available.`;
       fallbackEl.appendChild(message);
+      markPanelEnter(fallbackEl);
     }
 
     if (article.pageUrl) {
@@ -488,6 +567,7 @@
     }
 
     contentEl.hidden = false;
+    markPanelEnter(contentEl);
   }
 
   async function show(scoredWords, options = {}) {
@@ -526,9 +606,10 @@
       loadingEl.hidden = false;
       contentEl.hidden = true;
       fallbackEl.hidden = true;
-      el.hidden = false;
-      setBodyLocked(true);
-      window.GlobblePlaceInfo?.hidePlaceTip?.();
+      loadingEl.classList.remove("wiki-reveal-panel-enter");
+      window.GlobblePlaceInfo?.hidePlaceTip?.(true);
+      await openOverlay(el);
+      markPanelEnter(loadingEl);
 
       let article = null;
       try {
@@ -540,12 +621,17 @@
         article = null;
       }
 
+      // Let the parchment settle briefly before swapping loading → article.
+      if (!prefersReducedMotion()) {
+        await waitMs(40);
+      }
+
       if (overlayEl === el) {
         renderArticle(el, article, label);
       }
 
       await waitForContinue(el);
-      hide();
+      await hide();
     })();
 
     try {

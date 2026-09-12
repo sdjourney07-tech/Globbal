@@ -235,6 +235,7 @@ function initGame() {
   selectedRackIndex = null;
   turnPlacedTiles = [];
   gameStarted = true;
+  window.GlobblePlaceInfo?.clearPlayedWordScores?.();
   window.GlobblePendingWordGlow?.resetGlowState();
   window.GlobbleBoardZoom?.reset(false);
   setMessage("");
@@ -741,6 +742,7 @@ function scorePlacedTilesOnly(turnPlacements) {
 function computeTurnScore(words, turnPlacements, { applyQwPlating = false } = {}) {
   const newKeys = new Set(turnPlacements.map(({ row, col }) => `${row},${col}`));
   let total = 0;
+  const wordScores = [];
 
   words.forEach((word) => {
     let wordBase = 0;
@@ -772,7 +774,11 @@ function computeTurnScore(words, turnPlacements, { applyQwPlating = false } = {}
       wordBase += letterValue;
     });
 
-    total += wordBase * wordMultiplier;
+    const wordScore = wordBase * wordMultiplier;
+    total += wordScore;
+    if (word?.text) {
+      wordScores.push({ text: word.text, score: wordScore });
+    }
 
     if (applyQwPlating && usesQw) {
       word.cells.forEach(({ row, col }) => {
@@ -788,7 +794,7 @@ function computeTurnScore(words, turnPlacements, { applyQwPlating = false } = {}
     total += FULL_RACK_BONUS;
   }
 
-  return total;
+  return { total, wordScores };
 }
 
 function renderPendingTurnScore() {
@@ -806,7 +812,7 @@ function renderPendingTurnScore() {
   const validation = validateTurn();
   if (validation.ok) {
     pendingTurnScoreEl.textContent = String(
-      computeTurnScore(validation.words, turnPlacedTiles, { applyQwPlating: false })
+      computeTurnScore(validation.words, turnPlacedTiles, { applyQwPlating: false }).total
     );
     pendingTurnScoreEl.classList.add("is-valid");
     return;
@@ -1595,7 +1601,6 @@ async function submitTurn() {
   }
 
   const scoredWords = validation.words;
-  const wikiArticlePromise = window.GlobbleWordWikipediaReveal?.prefetch?.(scoredWords);
 
   const lockedPositions = turnPlacedTiles.map(({ row, col }) => ({ row, col }));
   const submittingPlayer = currentPlayer;
@@ -1612,22 +1617,6 @@ async function submitTurn() {
   turnPlacedTiles = [];
   window.GlobblePendingWordGlow?.resetGlowState();
   window.GlobbleBoardZoom?.reset(false);
-
-  if (window.GlobbleWordWikipediaReveal?.show) {
-    if (submitTurnBtn) {
-      submitTurnBtn.disabled = true;
-    }
-    try {
-      await window.GlobbleWordWikipediaReveal.show(scoredWords, {
-        scoreLine,
-        articlePromise: wikiArticlePromise
-      });
-    } finally {
-      if (submitTurnBtn) {
-        submitTurnBtn.disabled = false;
-      }
-    }
-  }
 
   renderBoard();
 
@@ -1716,7 +1705,9 @@ function validateTurn() {
 
 /** Score all words and gold-plate any word that includes a new tile on a QW square. */
 function scoreWordsAndMarkQwPlating(words, turnPlacements) {
-  return computeTurnScore(words, turnPlacements, { applyQwPlating: true });
+  const result = computeTurnScore(words, turnPlacements, { applyQwPlating: true });
+  window.GlobblePlaceInfo?.registerPlayedWordScores?.(result.wordScores);
+  return result.total;
 }
 
 function isContiguous(newTiles, axis) {

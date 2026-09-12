@@ -123,6 +123,7 @@ function main() {
   const assigned = new Set();
   const categories = {
     countries: [],
+    territories: [],
     abbreviations: [],
     mountainRanges: [],
     landforms: [],
@@ -186,6 +187,16 @@ function main() {
       assigned.add(word);
     } else if (ISLAND_CONTINENT_KINDS.has(entry?.kind)) {
       categories.islandsContinents.push(word);
+      assigned.add(word);
+    }
+  }
+
+  for (const word of words) {
+    if (assigned.has(word)) {
+      continue;
+    }
+    if (meta[word]?.kind === "territory") {
+      categories.territories.push(word);
       assigned.add(word);
     }
   }
@@ -307,6 +318,7 @@ function main() {
       {
         totalWords: words.length,
         countries: categories.countries.length,
+        territories: categories.territories.length,
         abbreviations: categories.abbreviations.length,
         mountainRanges: categories.mountainRanges.length,
         landforms: categories.landforms.length,

@@ -10,6 +10,7 @@
     "build:categories": "node scripts/build-dictionary-categories.cjs",
     "apply:display-names": "node scripts/apply-dictionary-display-names.cjs",
     "add:countries": "node scripts/add-countries-to-dictionary.cjs",
+    "add:territories": "node scripts/add-territories-to-dictionary.cjs",
     "apply:country-aliases": "node scripts/apply-country-aliases.cjs",
     "add:abbreviations": "node scripts/add-abbreviations-to-dictionary.cjs",
     "add:states": "node scripts/add-us-states-to-dictionary.cjs",

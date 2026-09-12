@@ -7,6 +7,11 @@
 
   const CATEGORIES = [
     { id: "countries", label: "Countries" },
+    {
+      id: "territories",
+      label: "Territories",
+      criteria: "Dependent territories and special administrative regions"
+    },
     { id: "abbreviations", label: "Abbreviations" },
     { id: "usaStates", label: "USA states" },
     { id: "ukCounties", label: "UK counties" },
@@ -334,7 +339,7 @@
     const isCountryEntry = meta?.kind === "country";
     const tr = document.createElement("tr");
 
-    if (categoryId === "countries") {
+    if (categoryId === "countries" || categoryId === "territories") {
       const tdCountry = document.createElement("td");
       tdCountry.textContent = word;
       const tdPop = document.createElement("td");
@@ -530,6 +535,9 @@
     if (categoryId === "countries") {
       return "<tr><th scope=\"col\">Country</th><th scope=\"col\" class=\"dictionary-population\">Population</th></tr>";
     }
+    if (categoryId === "territories") {
+      return "<tr><th scope=\"col\">Territory</th><th scope=\"col\" class=\"dictionary-population\">Population</th></tr>";
+    }
     if (categoryId === "abbreviations") {
       return "<tr><th scope=\"col\">Abbreviation</th><th scope=\"col\" class=\"dictionary-place-detail\">Name</th></tr>";
     }
@@ -604,9 +612,11 @@
     const categoryId = categoryEl.dataset.categoryId || "";
     const table = document.createElement("table");
     table.className = "dictionary-table";
-    if (categoryId === "countries" || categoryId === "usaStates") {
+    if (categoryId === "countries" || categoryId === "territories" || categoryId === "usaStates") {
       table.classList.add(
-        categoryId === "countries" ? "dictionary-table-countries" : "dictionary-table-us-states"
+        categoryId === "usaStates"
+          ? "dictionary-table-us-states"
+          : "dictionary-table-countries"
       );
     } else if (categoryId === "abbreviations") {
       table.classList.add("dictionary-table-abbreviations");

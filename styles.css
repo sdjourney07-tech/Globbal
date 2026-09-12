@@ -893,7 +893,27 @@ button:hover {
   border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: 0 8px 28px var(--shadow);
+  pointer-events: none;
+  opacity: 0;
+  transform: translate3d(0, 8px, 0) scale(0.97);
+  transform-origin: center top;
+  transition:
+    opacity 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.22s ease;
+  will-change: opacity, transform;
+}
+
+.globble-place-tip[data-placement="above"] {
+  transform: translate3d(0, -8px, 0) scale(0.97);
+  transform-origin: center bottom;
+}
+
+.globble-place-tip.is-visible {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
   pointer-events: auto;
+  box-shadow: 0 12px 34px rgba(42, 26, 15, 0.22);
 }
 
 /* Invisible bridge so the pointer can reach links without the tip closing. */
@@ -923,6 +943,13 @@ button:hover {
   color: var(--text);
 }
 
+.globble-place-tip-score {
+  margin-top: 0.28rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #5a3d28;
+}
+
 .globble-place-tip-links {
   display: flex;
   flex-direction: column;
@@ -948,11 +975,13 @@ button:hover {
   line-height: 1.35;
   word-break: break-word;
   cursor: pointer;
+  transition: color 0.16s ease, transform 0.16s ease;
 }
 
 .globble-place-tip-link:hover,
 .globble-place-tip-link:focus-visible {
   color: var(--text);
+  transform: translateX(2px);
 }
 
 .wiki-reveal {
@@ -968,8 +997,17 @@ button:hover {
     max(8px, env(safe-area-inset-right, 0px))
     max(8px, env(safe-area-inset-bottom, 0px))
     max(8px, env(safe-area-inset-left, 0px));
-  background: rgba(8, 6, 4, 0.72);
+  background: rgba(8, 6, 4, 0);
   box-sizing: border-box;
+  opacity: 0;
+  transition:
+    opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.wiki-reveal.is-open {
+  opacity: 1;
+  background: rgba(8, 6, 4, 0.72);
 }
 
 .wiki-reveal-shell {
@@ -982,6 +1020,26 @@ button:hover {
   background: #362518;
   border: none;
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+  transform: translate3d(0, 22px, 0) scale(0.965);
+  opacity: 0.72;
+  transition:
+    transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform, opacity;
+}
+
+.wiki-reveal.is-open .wiki-reveal-shell {
+  transform: translate3d(0, 0, 0) scale(1);
+  opacity: 1;
+}
+
+.wiki-reveal.is-closing {
+  pointer-events: none;
+}
+
+.wiki-reveal.is-closing .wiki-reveal-shell {
+  transform: translate3d(0, 12px, 0) scale(0.985);
+  opacity: 0;
 }
 
 .wiki-reveal-parchment-layer {
@@ -1062,6 +1120,13 @@ button:hover {
   font-size: 0.72rem;
   line-height: 1.1;
   white-space: nowrap;
+  transition: transform 0.16s ease, filter 0.16s ease;
+}
+
+.wiki-reveal-continue:hover,
+.wiki-reveal-continue:focus-visible {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
 }
 
 .wiki-reveal-body {
@@ -1106,6 +1171,43 @@ button:hover {
   box-sizing: border-box;
   color: #1f140d;
   background: transparent;
+}
+
+.wiki-reveal-panel-enter {
+  animation: wiki-reveal-panel-in 0.36s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes wiki-reveal-panel-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .globble-place-tip,
+  .wiki-reveal,
+  .wiki-reveal-shell,
+  .globble-place-tip-link,
+  .wiki-reveal-continue {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  .globble-place-tip,
+  .globble-place-tip[data-placement="above"],
+  .wiki-reveal-shell,
+  .wiki-reveal.is-closing .wiki-reveal-shell {
+    transform: none;
+  }
+
+  .wiki-reveal-panel-enter {
+    animation: none !important;
+  }
 }
 
 .wiki-reveal-thumb:not([hidden]) {
@@ -1164,6 +1266,13 @@ button:hover {
   color: #245ea8;
   text-decoration: underline;
   text-underline-offset: 2px;
+  transition: color 0.16s ease, transform 0.16s ease;
+}
+
+.wiki-reveal-open:hover,
+.wiki-reveal-open:focus-visible {
+  color: #1a3f73;
+  transform: translateX(2px);
 }
 
 .wiki-reveal-fallback-text {

@@ -90,6 +90,10 @@ if (countries.length !== UN_MEMBER_ISO2.size) {
 function isSovereignCountryWord(word) {
   const compact = compactWord(word);
   const entry = meta[word];
+  if (entry?.kind === "territory") {
+    // Kept by scripts/add-territories-to-dictionary.cjs
+    return true;
+  }
   if (entry?.countryAlias) {
     return true;
   }

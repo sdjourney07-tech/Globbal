@@ -10,9 +10,98 @@
     lookupMapsBuilt: false
   };
 
+  function wikipediaUrlForTitle(title) {
+    if (!title) {
+      return null;
+    }
+    const slug = encodeURI(String(title).trim().replace(/ /g, "_"));
+    return `https://en.wikipedia.org/wiki/${slug}`;
+  }
+
+  /** Full English name for a US state abbreviation / ALL-CAPS dictionary key. */
+  function formatStateFullName(nameOrCode) {
+    const meta = getMetaForWord(nameOrCode);
+    if (meta?.abbreviationFor) {
+      return formatStateFullName(meta.abbreviationFor);
+    }
+    const raw = String(meta?.abbreviationFor || nameOrCode || "")
+      .trim()
+      .replace(/\s+/g, " ");
+    if (!raw) {
+      return "";
+    }
+    // Prefer dictionary display ("NEW YORK" → "New York") when available.
+    if (window.GlobbleDictionaryKeys?.displayWord) {
+      const displayed = GlobbleDictionaryKeys.displayWord(raw);
+      if (displayed && /[a-z]/.test(displayed)) {
+        return displayed;
+      }
+    }
+    return raw
+      .toLowerCase()
+      .replace(/\b([a-z])/g, (m) => m.toUpperCase());
+  }
+
+  /** Ambiguous state names that need a disambiguated Wikipedia title. */
+  function stateWikipediaTitle(code, fullName) {
+    const normalizedCode = String(code || "").toUpperCase();
+    if (normalizedCode === "GA") {
+      return "Georgia (U.S. state)";
+    }
+    if (normalizedCode === "WA") {
+      return "Washington (state)";
+    }
+    return fullName;
+  }
+
+  function wikipediaCandidatesForStateAbbreviation(meta) {
+    if (!meta?.abbreviationFor) {
+      return [];
+    }
+    const fullName = formatStateFullName(meta.abbreviationFor);
+    const code = meta.stateCode || "";
+    const title = stateWikipediaTitle(code, fullName);
+    const url = wikipediaUrlForTitle(title);
+    if (!url) {
+      return [];
+    }
+
+    const targetMeta = getMetaForWord(meta.abbreviationFor);
+    // Prefer an existing unambiguous state article when the target is not a country clash.
+    if (
+      targetMeta?.kind === "state" &&
+      targetMeta.wikipediaUrl &&
+      !/\/Georgia$/i.test(targetMeta.wikipediaUrl)
+    ) {
+      const label =
+        targetMeta.wikipediaCandidates?.[0]?.label &&
+        !/^wikipedia$/i.test(targetMeta.wikipediaCandidates[0].label)
+          ? targetMeta.wikipediaCandidates[0].label
+          : fullName;
+      return [
+        {
+          label,
+          url: targetMeta.wikipediaUrl,
+          kind: "state"
+        }
+      ];
+    }
+
+    return [
+      {
+        label: fullName,
+        url,
+        kind: "state"
+      }
+    ];
+  }
+
   function getPlaceKind(meta) {
     if (!meta) {
       return null;
+    }
+    if (meta.kind === "abbreviation" && meta.abbreviationFor) {
+      return "state";
     }
     if (meta.kind) {
       return meta.kind;
@@ -60,6 +149,24 @@
   }
 
   function formatDisplayLabel(word) {
+    if (!word) {
+      return "";
+    }
+    const meta = (() => {
+      ensureLookupMaps();
+      const compact = window.GlobbleDictionaryKeys
+        ? GlobbleDictionaryKeys.compactWord(word)
+        : String(word).replace(/\s+/g, "").toUpperCase();
+      return (
+        state.metadata[word] ||
+        state.compactToMeta[compact] ||
+        state.metadata[state.compactToDisplay[compact]] ||
+        null
+      );
+    })();
+    if (meta?.kind === "abbreviation" && meta.abbreviationFor) {
+      return formatStateFullName(meta.abbreviationFor);
+    }
     if (!window.GlobbleDictionaryKeys) {
       return word;
     }
@@ -147,6 +254,12 @@
     const meta = getMetaForWord(word);
     if (!meta) {
       return [];
+    }
+    if (meta.kind === "abbreviation" && meta.abbreviationFor) {
+      const abbrevCandidates = wikipediaCandidatesForStateAbbreviation(meta);
+      if (abbrevCandidates.length) {
+        return abbrevCandidates;
+      }
     }
     let candidates = [];
     if (Array.isArray(meta.wikipediaCandidates) && meta.wikipediaCandidates.length) {
@@ -285,6 +398,11 @@
       const pop = formatPopulationValue(meta.population);
       return `${display} — United States (state) · ${pop}`;
     }
+    if (meta?.kind === "abbreviation" && meta.abbreviationFor) {
+      const pop = formatPopulationValue(meta.population);
+      const code = meta.stateCode || String(word || "").toUpperCase();
+      return `${code} — ${display} (U.S. state) · ${pop}`;
+    }
     if (meta?.kind === "county") {
       const pop = formatPopulationValue(meta.population);
       const region = meta.region || "Ireland";
@@ -327,7 +445,7 @@
     if (state.loadPromise) {
       return state.loadPromise;
     }
-    const metaFile = window.GLOBBLE_PLACE_METADATA_FILE || "place-metadata.json";
+    const metaFile = window.GLOBBLE_PLACE_METADATA_FILE || "place-metadata.json?v=state-abbr-wiki1";
     const url = new URL(metaFile, window.location.href).href;
     state.loadPromise = fetch(url)
       .then((res) => (res.ok ? res.json() : {}))
@@ -427,7 +545,54 @@
   let tipEl = null;
   let activeTipCell = null;
   let hideTipTimer = null;
-  const HIDE_TIP_DELAY_MS = 700;
+  let showTipTimer = null;
+  let tipFadeTimer = null;
+  let tipGeneration = 0;
+  const HIDE_TIP_DELAY_MS = 220;
+  const SHOW_TIP_DELAY_MS = 45;
+  const TIP_FADE_MS = 180;
+  /** @type {Map<string, number>} compact word → points scored when that word was played */
+  const playedWordScores = new Map();
+
+  function prefersReducedMotion() {
+    return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true;
+  }
+
+  function scoreKeyForWord(word) {
+    if (window.GlobbleDictionaryKeys?.compactWord) {
+      return GlobbleDictionaryKeys.compactWord(word);
+    }
+    return String(word || "")
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, "");
+  }
+
+  function clearPlayedWordScores() {
+    playedWordScores.clear();
+  }
+
+  function registerPlayedWordScores(entries) {
+    if (!Array.isArray(entries)) {
+      return;
+    }
+    entries.forEach((entry) => {
+      const text = String(entry?.text || "").trim();
+      const score = Number(entry?.score);
+      if (!text || !Number.isFinite(score)) {
+        return;
+      }
+      playedWordScores.set(scoreKeyForWord(text), score);
+    });
+  }
+
+  function getPlayedWordScore(word) {
+    const key = scoreKeyForWord(word);
+    if (!key || !playedWordScores.has(key)) {
+      return null;
+    }
+    return playedWordScores.get(key);
+  }
 
   function clearHideTipTimer() {
     if (hideTipTimer != null) {
@@ -436,14 +601,29 @@
     }
   }
 
+  function clearShowTipTimer() {
+    if (showTipTimer != null) {
+      window.clearTimeout(showTipTimer);
+      showTipTimer = null;
+    }
+  }
+
+  function clearTipFadeTimer() {
+    if (tipFadeTimer != null) {
+      window.clearTimeout(tipFadeTimer);
+      tipFadeTimer = null;
+    }
+  }
+
   function scheduleHidePlaceTip() {
     clearHideTipTimer();
+    clearShowTipTimer();
     hideTipTimer = window.setTimeout(() => {
       hideTipTimer = null;
       if (tipEl?.dataset.hover === "1") {
         return;
       }
-      hidePlaceTip();
+      hidePlaceTip(false);
     }, HIDE_TIP_DELAY_MS);
   }
 
@@ -471,15 +651,44 @@
     return tipEl;
   }
 
-  function hidePlaceTip() {
-    clearHideTipTimer();
-    if (tipEl) {
-      tipEl.hidden = true;
-      tipEl.replaceChildren();
-      delete tipEl.dataset.placement;
-      delete tipEl.dataset.hover;
+  function finishHidePlaceTip() {
+    clearTipFadeTimer();
+    if (!tipEl) {
+      activeTipCell = null;
+      return;
     }
+    tipEl.hidden = true;
+    tipEl.classList.remove("is-visible", "is-ready");
+    tipEl.replaceChildren();
+    delete tipEl.dataset.placement;
+    delete tipEl.dataset.hover;
+    tipEl.style.top = "";
+    tipEl.style.left = "";
+    tipEl.style.visibility = "";
     activeTipCell = null;
+  }
+
+  /** @param {boolean} [immediate=true] */
+  function hidePlaceTip(immediate = true) {
+    clearHideTipTimer();
+    clearShowTipTimer();
+    tipGeneration += 1;
+    if (!tipEl || tipEl.hidden) {
+      finishHidePlaceTip();
+      return;
+    }
+    if (immediate || prefersReducedMotion() || !tipEl.classList.contains("is-visible")) {
+      tipEl.classList.remove("is-visible");
+      finishHidePlaceTip();
+      return;
+    }
+    tipEl.classList.remove("is-visible");
+    delete tipEl.dataset.hover;
+    clearTipFadeTimer();
+    tipFadeTimer = window.setTimeout(() => {
+      tipFadeTimer = null;
+      finishHidePlaceTip();
+    }, TIP_FADE_MS);
   }
 
   function appendWikipediaLinks(container, word) {
@@ -519,10 +728,21 @@
     words.forEach((word, index) => {
       const section = document.createElement("div");
       section.className = "globble-place-tip-section";
+
       const desc = document.createElement("div");
       desc.className = "globble-place-tip-desc";
       desc.textContent = describeWord(word);
       section.appendChild(desc);
+
+      const scored = getPlayedWordScore(word);
+      if (scored != null) {
+        const scoreEl = document.createElement("div");
+        scoreEl.className = "globble-place-tip-score";
+        scoreEl.textContent =
+          scored === 1 ? "Scored 1 point in this game" : `Scored ${scored} points in this game`;
+        section.appendChild(scoreEl);
+      }
+
       appendWikipediaLinks(section, word);
       frag.appendChild(section);
       if (index < words.length - 1) {
@@ -535,50 +755,123 @@
     return frag;
   }
 
+  function positionTipEl(el, anchorRect) {
+    const tipRect = el.getBoundingClientRect();
+    const gap = 8;
+    let top = anchorRect.bottom + gap;
+    let left = anchorRect.left + anchorRect.width / 2 - tipRect.width / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - tipRect.width - 8));
+    let placement = "below";
+    if (top + tipRect.height > window.innerHeight - 8) {
+      top = Math.max(8, anchorRect.top - tipRect.height - gap);
+      placement = "above";
+    }
+    el.dataset.placement = placement;
+    el.style.top = `${top}px`;
+    el.style.left = `${left}px`;
+  }
+
   function showPlaceTipNear(words, anchorRect, cellEl) {
     if (!words.length) {
-      hidePlaceTip();
+      hidePlaceTip(true);
       return;
     }
+    clearTipFadeTimer();
     const el = ensureTipEl();
+    const wasVisible = !el.hidden && el.classList.contains("is-visible");
     el.replaceChildren(buildTipContent(words));
     el.hidden = false;
     el.style.visibility = "hidden";
+    el.classList.remove("is-visible");
     activeTipCell = cellEl || null;
-    requestAnimationFrame(() => {
-      const tipRect = el.getBoundingClientRect();
-      const gap = 4;
-      let top = anchorRect.bottom + gap;
-      let left = anchorRect.left + anchorRect.width / 2 - tipRect.width / 2;
-      left = Math.max(8, Math.min(left, window.innerWidth - tipRect.width - 8));
-      let placement = "below";
-      if (top + tipRect.height > window.innerHeight - 8) {
-        top = Math.max(8, anchorRect.top - tipRect.height - gap);
-        placement = "above";
-      }
-      el.dataset.placement = placement;
-      el.style.top = `${top}px`;
-      el.style.left = `${left}px`;
+
+    const reveal = () => {
+      positionTipEl(el, anchorRect);
       el.style.visibility = "visible";
-    });
+      el.classList.add("is-ready");
+      if (prefersReducedMotion()) {
+        el.classList.add("is-visible");
+        return;
+      }
+      if (wasVisible) {
+        // Soft content swap while staying open.
+        el.classList.add("is-visible");
+        return;
+      }
+      // Next frame so the enter transition always runs from the resting pose.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (activeTipCell === cellEl && tipEl === el && !el.hidden) {
+            el.classList.add("is-visible");
+          }
+        });
+      });
+    };
+
+    requestAnimationFrame(reveal);
   }
 
   async function showPlaceTipForCell(cellEl, board, row, col) {
     const words = wordsForCell(board, row, col);
     if (!words.length) {
-      hidePlaceTip();
+      hidePlaceTip(true);
       return;
     }
-    // Metadata is fetched only when place info is opened (not on game start).
+    const generation = ++tipGeneration;
+    // Paint immediately so hover feels instant; refresh after metadata loads.
+    showPlaceTipNear(words, cellEl.getBoundingClientRect(), cellEl);
     await load();
-    if (!cellEl.isConnected) {
+    if (generation !== tipGeneration || !cellEl.isConnected || activeTipCell !== cellEl) {
       return;
     }
     showPlaceTipNear(words, cellEl.getBoundingClientRect(), cellEl);
   }
 
-  function bindLockedCellPlaceTip(_cellEl, _board, _row, _col) {
-    /* Hover tooltips disabled — place info still used for score messages and Wikipedia reveal. */
+  function queueShowPlaceTipForCell(cellEl, board, row, col) {
+    clearHideTipTimer();
+    clearShowTipTimer();
+    if (activeTipCell === cellEl && tipEl && !tipEl.hidden) {
+      showPlaceTipForCell(cellEl, board, row, col);
+      return;
+    }
+    showTipTimer = window.setTimeout(() => {
+      showTipTimer = null;
+      showPlaceTipForCell(cellEl, board, row, col);
+    }, SHOW_TIP_DELAY_MS);
+  }
+
+  function bindLockedCellPlaceTip(cellEl, board, row, col) {
+    if (!(cellEl instanceof HTMLElement)) {
+      return;
+    }
+    cellEl.tabIndex = 0;
+    cellEl.addEventListener("mouseenter", () => {
+      queueShowPlaceTipForCell(cellEl, board, row, col);
+    });
+    cellEl.addEventListener("mouseleave", (event) => {
+      const next = event.relatedTarget;
+      if (tipEl && !tipEl.hidden && next instanceof Node && tipEl.contains(next)) {
+        return;
+      }
+      scheduleHidePlaceTip();
+    });
+    cellEl.addEventListener("focus", () => {
+      clearHideTipTimer();
+      clearShowTipTimer();
+      showPlaceTipForCell(cellEl, board, row, col);
+    });
+    cellEl.addEventListener("blur", () => {
+      scheduleHidePlaceTip();
+    });
+    cellEl.addEventListener("click", () => {
+      if (activeTipCell === cellEl && tipEl && !tipEl.hidden && tipEl.classList.contains("is-visible")) {
+        hidePlaceTip(false);
+        return;
+      }
+      clearHideTipTimer();
+      clearShowTipTimer();
+      showPlaceTipForCell(cellEl, board, row, col);
+    });
   }
 
   window.GlobblePlaceInfo = {
@@ -591,6 +884,9 @@
     linesForCell,
     summaryBlockForWords,
     bindLockedCellPlaceTip,
-    hidePlaceTip
+    hidePlaceTip,
+    registerPlayedWordScores,
+    clearPlayedWordScores,
+    getPlayedWordScore
   };
 })();

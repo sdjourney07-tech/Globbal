@@ -99,6 +99,21 @@ let chatMessages = [];
 let chatPanelOpen = false;
 let chatUnreadCount = 0;
 
+function syncPlayedWordScoresFromState(state) {
+  window.GlobblePlaceInfo?.clearPlayedWordScores?.();
+  if (!state || state.lobby) {
+    return;
+  }
+  const fromHistory = Array.isArray(state.playedWordScores) ? state.playedWordScores : [];
+  if (fromHistory.length) {
+    window.GlobblePlaceInfo?.registerPlayedWordScores?.(fromHistory);
+    return;
+  }
+  // Older snapshots only carry the latest turn's words.
+  const latest = Array.isArray(state.lastScoredWords) ? state.lastScoredWords : [];
+  window.GlobblePlaceInfo?.registerPlayedWordScores?.(latest);
+}
+
 function cloneGameState(state) {
   if (!state) {
     return null;
@@ -523,6 +538,7 @@ function onWsMessage(ev) {
         syncOffTurnPreviewToServer();
       }
     }
+    syncPlayedWordScoresFromState(gameState);
     renderAll();
   } else if (msg.type === "joined") {
     if (msg.gameId) {
@@ -990,10 +1006,11 @@ function scorePlacedTilesOnly(turnPlacements) {
 function computeTurnScore(words, turnPlacements) {
   const board = gameState?.board;
   if (!board) {
-    return 0;
+    return { total: 0, wordScores: [] };
   }
   const newKeys = new Set(turnPlacements.map(({ row, col }) => `${row},${col}`));
   let total = 0;
+  const wordScores = [];
 
   words.forEach((word) => {
     let wordBase = 0;
@@ -1022,14 +1039,18 @@ function computeTurnScore(words, turnPlacements) {
       wordBase += letterValue;
     });
 
-    total += wordBase * wordMultiplier;
+    const wordScore = wordBase * wordMultiplier;
+    total += wordScore;
+    if (word?.text) {
+      wordScores.push({ text: word.text, score: wordScore });
+    }
   });
 
   if (turnPlacements.length === RACK_SIZE) {
     total += FULL_RACK_BONUS;
   }
 
-  return total;
+  return { total, wordScores };
 }
 
 function renderPendingTurnScore() {
@@ -1056,7 +1077,7 @@ function renderPendingTurnScore() {
     onlineDictionary
   );
   if (validation?.ok) {
-    pendingTurnScoreEl.textContent = String(computeTurnScore(validation.words, turnPlacements));
+    pendingTurnScoreEl.textContent = String(computeTurnScore(validation.words, turnPlacements).total);
     pendingTurnScoreEl.classList.add("is-valid");
     return;
   }
@@ -1206,6 +1227,7 @@ function renderAll() {
     renderLobby();
     setGameChatVisible(false);
     resetChatState();
+    window.GlobblePlaceInfo?.clearPlayedWordScores?.();
     if (pendingTurnScoreEl) {
       pendingTurnScoreEl.textContent = "";
       pendingTurnScoreEl.classList.remove("is-pending", "is-valid");

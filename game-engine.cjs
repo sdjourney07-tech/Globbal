@@ -270,8 +270,10 @@ class OnlineGame {
     this.gameStarted = false;
     this.lastMessage = "";
     this.gameOver = null;
-    /** @type {{ text: string }[]} */
+    /** @type {{ text: string, score?: number }[]} */
     this.lastScoredWords = [];
+    /** @type {{ text: string, score: number }[]} */
+    this.playedWordScores = [];
   }
 
   initGame() {
@@ -294,6 +296,7 @@ class OnlineGame {
     this.gameStarted = true;
     this.gameOver = null;
     this.lastScoredWords = [];
+    this.playedWordScores = [];
     this.lastMessage = "";
   }
 
@@ -396,7 +399,16 @@ class OnlineGame {
       gameOver: this.gameOver,
       lastMessage: this.lastMessage || "",
       lastScoredWords: Array.isArray(this.lastScoredWords)
-        ? this.lastScoredWords.map((w) => ({ text: String(w.text || "") }))
+        ? this.lastScoredWords.map((w) => ({
+            text: String(w.text || ""),
+            score: Number.isFinite(Number(w.score)) ? Number(w.score) : undefined
+          }))
+        : [],
+      playedWordScores: Array.isArray(this.playedWordScores)
+        ? this.playedWordScores.map((w) => ({
+            text: String(w.text || ""),
+            score: Number(w.score) || 0
+          }))
         : [],
       bag: (this.bag || []).map((tile) => this.cloneTile(tile)),
       players: (this.players || []).map((p) => ({
@@ -475,7 +487,16 @@ class OnlineGame {
     this.gameOver = snapshot.gameOver || null;
     this.lastMessage = String(snapshot.lastMessage || "");
     this.lastScoredWords = Array.isArray(snapshot.lastScoredWords)
-      ? snapshot.lastScoredWords.map((w) => ({ text: String(w?.text || "") }))
+      ? snapshot.lastScoredWords.map((w) => ({
+          text: String(w?.text || ""),
+          score: Number.isFinite(Number(w?.score)) ? Number(w.score) : undefined
+        }))
+      : [];
+    this.playedWordScores = Array.isArray(snapshot.playedWordScores)
+      ? snapshot.playedWordScores.map((w) => ({
+          text: String(w?.text || ""),
+          score: Number(w?.score) || 0
+        }))
       : [];
     return true;
   }
@@ -517,7 +538,16 @@ class OnlineGame {
       gameStarted: this.gameStarted,
       dictionarySize: this.dictionary.size,
       lastScoredWords: Array.isArray(this.lastScoredWords)
-        ? this.lastScoredWords.map((w) => ({ text: w.text }))
+        ? this.lastScoredWords.map((w) => ({
+            text: w.text,
+            score: Number.isFinite(Number(w.score)) ? Number(w.score) : undefined
+          }))
+        : [],
+      playedWordScores: Array.isArray(this.playedWordScores)
+        ? this.playedWordScores.map((w) => ({
+            text: w.text,
+            score: Number(w.score) || 0
+          }))
         : []
     };
   }
@@ -642,8 +672,10 @@ class OnlineGame {
       return { ok: false, error: validation.error };
     }
     const placements = [...this.turnPlacedTiles];
-    const points = this.scoreWordsAndMarkQwPlating(validation.words, placements);
-    this.lastScoredWords = validation.words.map((w) => ({ text: w.text }));
+    const scored = this.scoreWordsAndMarkQwPlating(validation.words, placements);
+    const points = scored.total;
+    this.lastScoredWords = scored.wordScores.slice();
+    this.playedWordScores = [...(this.playedWordScores || []), ...scored.wordScores];
     this.players[playerIndex].score += points;
     this.turnPlacedTiles.forEach(({ row, col }) => {
       this.board[row][col].tile.locked = true;
@@ -786,6 +818,7 @@ class OnlineGame {
   scoreWordsAndMarkQwPlating(words, turnPlacements) {
     const newKeys = new Set(turnPlacements.map(({ row, col }) => `${row},${col}`));
     let total = 0;
+    const wordScores = [];
 
     words.forEach((word) => {
       let wordBase = 0;
@@ -818,7 +851,11 @@ class OnlineGame {
         wordBase += letterValue;
       });
 
-      total += wordBase * wordMultiplier;
+      const wordScore = wordBase * wordMultiplier;
+      total += wordScore;
+      if (word?.text) {
+        wordScores.push({ text: word.text, score: wordScore });
+      }
 
       if (usesQw) {
         word.cells.forEach(({ row, col }) => {
@@ -834,7 +871,7 @@ class OnlineGame {
       total += FULL_RACK_BONUS;
     }
 
-    return total;
+    return { total, wordScores };
   }
 
   getAllLockedTiles() {
